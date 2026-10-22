@@ -1,0 +1,98 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="mobile-web-app-capable" content="yes" />
+  <title>Cosmic Clash</title>
+  <link rel="stylesheet" href="./style.css" />
+  <script src="https://unpkg.com/playroomkit/dist/playroomkit.js"></script>
+  <script type="importmap">
+  {
+    "imports": {
+      "three": "https://unpkg.com/three@0.160.0/build/three.module.js",
+      "three/addons/": "https://unpkg.com/three@0.160.0/examples/jsm/"
+    }
+  }
+  </script>
+</head>
+<body>
+  <div id="lobby">
+    <div class="lobby-panel">
+      <p class="eyebrow">Phase 2 · Kits & Combat</p>
+      <h1>Cosmic Clash</h1>
+      <p class="tagline">Pick a class, choose a banner, then host or join. Attack allies who are downed to revive them.</p>
+
+      <div class="class-grid" id="class-select">
+        <button type="button" class="class-card selected" data-class="rogue">Rogue</button>
+        <button type="button" class="class-card" data-class="sorcerer">Sorcerer</button>
+        <button type="button" class="class-card" data-class="druid">Druid</button>
+        <button type="button" class="class-card" data-class="paladin">Paladin</button>
+      </div>
+      <div class="team-row" id="team-select">
+        <button type="button" class="team-btn selected" data-team="0">Red</button>
+        <button type="button" class="team-btn" data-team="1">Blue</button>
+      </div>
+      <div class="map-row" id="map-select">
+        <button type="button" class="map-btn selected" data-map="overgrown">Sanctum</button>
+        <button type="button" class="map-btn" data-map="magma">Magma Core</button>
+        <button type="button" class="map-btn" data-map="clockwork">Void</button>
+      </div>
+
+      <label class="field" for="room-code-input">
+        <span>Room code</span>
+        <input
+          id="room-code-input"
+          type="text"
+          maxlength="4"
+          spellcheck="false"
+          autocomplete="off"
+          autocapitalize="characters"
+          placeholder="ABCD"
+        />
+      </label>
+
+      <div class="lobby-actions">
+        <button id="btn-host" type="button">Host Match</button>
+        <button id="btn-join" type="button">Join Room</button>
+      </div>
+
+      <p id="lobby-status" class="status" role="status">Ready when you are.</p>
+      <p id="room-code-display" class="room-code" hidden></p>
+    </div>
+  </div>
+
+  <canvas id="game-canvas"></canvas>
+
+  <div id="hud" hidden>
+    <div class="hud-chip" id="hud-room"></div>
+    <div class="hud-chip" id="hud-players"></div>
+    <div class="hud-chip" id="hud-class"></div>
+    <div class="hp-wrap">
+      <div id="hp-fill"></div>
+      <span id="hp-text">100</span>
+    </div>
+    <div class="hud-chip" id="hud-state"></div>
+  </div>
+
+  <div id="mobile-controls" hidden>
+    <div id="joystick-move" class="joystick" aria-hidden="true">
+      <div class="joystick-base"></div>
+      <div class="joystick-knob"></div>
+    </div>
+    <div id="skill-cluster">
+      <button type="button" id="btn-primary" class="skill-btn">ATK</button>
+      <button type="button" id="btn-skill1" class="skill-btn">Q</button>
+      <button type="button" id="btn-skill2" class="skill-btn">E</button>
+    </div>
+    <div id="joystick-aim" class="joystick" aria-hidden="true">
+      <div class="joystick-base"></div>
+      <div class="joystick-knob"></div>
+    </div>
+  </div>
+
+  <script type="module" src="./network.js"></script>
+  <script type="module" src="./main.js"></script>
+</body>
+</html>

@@ -1,0 +1,352 @@
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+html,
+body {
+  margin: 0;
+  padding: 0;
+  width: 100%;
+  height: 100%;
+  overflow: hidden;
+  background: #070712;
+  color: #f4f1ff;
+  font-family: "Trebuchet MS", "Segoe UI", sans-serif;
+  touch-action: none;
+  user-select: none;
+  -webkit-user-select: none;
+}
+
+canvas#game-canvas {
+  display: block;
+  width: 100%;
+  height: 100%;
+  position: fixed;
+  inset: 0;
+  z-index: 0;
+}
+
+#lobby {
+  position: fixed;
+  inset: 0;
+  z-index: 20;
+  display: grid;
+  place-items: center;
+  padding: 24px;
+  background:
+    radial-gradient(circle at 20% 20%, rgba(124, 77, 255, 0.28), transparent 42%),
+    radial-gradient(circle at 80% 80%, rgba(0, 209, 255, 0.22), transparent 46%),
+    linear-gradient(160deg, #0b0b1c 0%, #14132b 55%, #090914 100%);
+}
+
+.lobby-panel {
+  width: min(420px, 100%);
+  padding: 32px 28px 28px;
+  border-radius: 28px;
+  border: 1px solid rgba(232, 220, 255, 0.18);
+  background: linear-gradient(180deg, rgba(22, 18, 48, 0.72), rgba(10, 10, 24, 0.58));
+  box-shadow:
+    0 24px 80px rgba(4, 0, 20, 0.55),
+    inset 0 1px 0 rgba(255, 255, 255, 0.16);
+  backdrop-filter: blur(18px);
+  -webkit-backdrop-filter: blur(18px);
+}
+
+.eyebrow {
+  margin: 0 0 8px;
+  letter-spacing: 0.22em;
+  text-transform: uppercase;
+  font-size: 11px;
+  color: #9ae6ff;
+}
+
+h1 {
+  margin: 0;
+  font-size: 42px;
+  letter-spacing: 0.04em;
+  text-shadow: 0 0 24px rgba(160, 120, 255, 0.55);
+}
+
+.tagline {
+  margin: 12px 0 24px;
+  line-height: 1.45;
+  color: rgba(244, 241, 255, 0.78);
+}
+
+.field {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-bottom: 18px;
+  font-size: 12px;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: #cbb8ff;
+}
+
+.field input {
+  height: 52px;
+  border: 1px solid rgba(201, 176, 255, 0.28);
+  border-radius: 14px;
+  background: rgba(8, 8, 22, 0.55);
+  color: #fff;
+  text-align: center;
+  font-size: 28px;
+  letter-spacing: 0.42em;
+  text-transform: uppercase;
+  outline: none;
+}
+
+.field input:focus {
+  border-color: #7cf0ff;
+  box-shadow: 0 0 0 3px rgba(124, 240, 255, 0.18);
+}
+
+.lobby-actions {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+}
+
+button {
+  height: 48px;
+  border: 0;
+  border-radius: 14px;
+  cursor: pointer;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+}
+
+#btn-host {
+  color: #12081f;
+  background: linear-gradient(180deg, #ffe29a, #f0b429);
+}
+
+#btn-join {
+  color: #f8fdff;
+  background: linear-gradient(180deg, #6d5efc, #3b28c8);
+}
+
+button:disabled {
+  opacity: 0.55;
+  cursor: wait;
+}
+
+.status {
+  min-height: 20px;
+  margin: 16px 0 0;
+  font-size: 14px;
+  color: #b8d7ff;
+}
+
+.room-code {
+  margin: 10px 0 0;
+  font-size: 20px;
+  letter-spacing: 0.28em;
+  text-align: center;
+  color: #fff4b8;
+}
+
+#hud {
+  position: fixed;
+  top: 16px;
+  left: 16px;
+  z-index: 8;
+  display: flex;
+  gap: 8px;
+  pointer-events: none;
+}
+
+.hud-chip {
+  padding: 8px 12px;
+  border-radius: 999px;
+  border: 1px solid rgba(255, 255, 255, 0.16);
+  background: rgba(8, 10, 24, 0.55);
+  backdrop-filter: blur(10px);
+  font-size: 13px;
+  letter-spacing: 0.08em;
+}
+
+#mobile-controls {
+  position: fixed;
+  inset: 0;
+  z-index: 9;
+  pointer-events: none;
+}
+
+.joystick {
+  position: absolute;
+  bottom: max(28px, env(safe-area-inset-bottom));
+  width: 132px;
+  height: 132px;
+  pointer-events: auto;
+}
+
+#joystick-move {
+  left: max(22px, env(safe-area-inset-left));
+}
+
+#joystick-aim {
+  right: max(22px, env(safe-area-inset-right));
+}
+
+.joystick-base,
+.joystick-knob {
+  position: absolute;
+  border-radius: 50%;
+}
+
+.joystick-base {
+  inset: 0;
+  border: 2px solid rgba(255, 255, 255, 0.28);
+  background: rgba(16, 18, 40, 0.32);
+  box-shadow: inset 0 0 24px rgba(120, 180, 255, 0.16);
+}
+
+.joystick-knob {
+  top: 50%;
+  left: 50%;
+  width: 54px;
+  height: 54px;
+  margin: -27px 0 0 -27px;
+  background: rgba(236, 244, 255, 0.42);
+  border: 1px solid rgba(255, 255, 255, 0.55);
+}
+
+body.lobby-hidden #lobby {
+  display: none;
+}
+
+.class-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+  margin-bottom: 12px;
+}
+
+.class-card,
+.team-btn {
+  height: 40px;
+  border-radius: 12px;
+  border: 1px solid rgba(255, 255, 255, 0.16);
+  background: rgba(10, 12, 28, 0.45);
+  color: #f4f1ff;
+}
+
+.class-card.selected,
+.team-btn.selected {
+  border-color: #ffe29a;
+  box-shadow: 0 0 0 2px rgba(255, 226, 154, 0.28);
+}
+
+.team-row {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+  margin-bottom: 12px;
+}
+
+.team-btn[data-team="0"].selected {
+  background: linear-gradient(180deg, #ff6b6b, #c0392b);
+}
+
+.team-btn[data-team="1"].selected {
+  background: linear-gradient(180deg, #4cc9f0, #1d63c8);
+}
+
+.map-row {
+  display: grid;
+  grid-template-columns: 1fr 1fr 1fr;
+  gap: 8px;
+  margin-bottom: 18px;
+}
+
+.map-btn {
+  height: 38px;
+  border-radius: 12px;
+  border: 1px solid rgba(255, 255, 255, 0.16);
+  background: rgba(10, 12, 28, 0.45);
+  color: #f4f1ff;
+  font-size: 11px;
+  font-weight: 700;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.map-btn.selected {
+  border-color: #00ff88;
+  box-shadow: 0 0 0 2px rgba(0, 255, 136, 0.28);
+  background: rgba(14, 40, 26, 0.7);
+  color: #80ffdb;
+}
+
+#hud {
+  flex-wrap: wrap;
+  max-width: min(520px, calc(100% - 32px));
+  align-items: center;
+}
+
+.hp-wrap {
+  position: relative;
+  width: 160px;
+  height: 18px;
+  border-radius: 999px;
+  overflow: hidden;
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  background: rgba(8, 10, 24, 0.7);
+}
+
+#hp-fill {
+  height: 100%;
+  width: 100%;
+  background: linear-gradient(90deg, #ff4d6d, #ffe29a);
+}
+
+#hp-text {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  font-size: 11px;
+  letter-spacing: 0.08em;
+}
+
+#skill-cluster {
+  position: absolute;
+  right: max(168px, calc(env(safe-area-inset-right) + 150px));
+  bottom: max(36px, env(safe-area-inset-bottom));
+  display: flex;
+  gap: 10px;
+  pointer-events: auto;
+}
+
+.skill-btn {
+  width: 62px;
+  height: 62px;
+  border-radius: 50%;
+  color: #12081f;
+  background: linear-gradient(180deg, #e8f1ff, #9bb7ff);
+  box-shadow: 0 8px 20px rgba(0, 0, 0, 0.28);
+  font-size: 12px;
+}
+
+.skill-btn.cooling {
+  opacity: 0.45;
+}
+
+#btn-primary {
+  background: linear-gradient(180deg, #ffe29a, #f0b429);
+}
+
+@media (pointer: fine) {
+  .joystick {
+    display: none;
+  }
+
+  #skill-cluster {
+    right: 24px;
+    bottom: 24px;
+  }
+}
