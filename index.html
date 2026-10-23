@@ -18,65 +18,70 @@
   <script type="module" src="./network.js"></script>
   <script type="module" src="./main.js"></script>
 </head>
-<body class="bg-transparent m-0 p-0 overflow-hidden">
+<body class="bg-transparent m-0 p-0 overflow-hidden select-none">
   <canvas id="game-canvas" style="position: absolute; top: 0; left: 0; z-index: 1; width: 100vw; height: 100vh; display: block;"></canvas>
 
-  <div id="master-ui" class="bg-transparent" style="position: absolute; top: 0; left: 0; z-index: 10; pointer-events: none; width: 100vw; height: 100vh;">
-    <div id="lobby" class="pointer-events-none">
-      <header class="cosmic-title-wrap">
-        <p class="cosmic-kicker">A realm between worlds</p>
-        <h1 class="cosmic-title">Cosmic Clash</h1>
-        <span class="cosmic-title-rule" aria-hidden="true"></span>
+  <div id="master-ui" class="flex flex-col items-center justify-center h-screen w-screen bg-transparent pointer-events-none" style="position: absolute; top: 0; left: 0; z-index: 10;">
+    <div class="flex flex-col items-center justify-center max-w-sm w-full px-6 py-8">
+      
+      <!-- 1. The "Cosmic Clash" Title -->
+      <header class="text-center mb-10 pointer-events-auto">
+        <p class="text-amber-400 font-serif text-xs md:text-sm tracking-[0.4em] uppercase opacity-85 mb-2 drop-shadow">A Realm Between Worlds</p>
+        <h1 class="text-4xl sm:text-5xl md:text-6xl font-bold font-serif text-amber-100 tracking-wider drop-shadow-[0_4px_24px_rgba(245,158,11,0.5)] whitespace-nowrap">Cosmic Clash</h1>
+        <div class="w-40 sm:w-56 h-0.5 mx-auto mt-4 bg-gradient-to-r from-transparent via-amber-400 to-transparent"></div>
       </header>
 
-      <section id="class-select" class="class-wheel" aria-label="Choose your class">
-        <p class="wheel-label">Choose your champion</p>
-        <div class="wheel-arc" aria-hidden="true"></div>
-        <button type="button" class="class-card class-card--rogue selected pointer-events-auto" data-class="rogue" onclick="window.selectClass('rogue')"><span>Rogue</span><small>Shadowstep</small></button>
-        <button type="button" class="class-card class-card--sorcerer pointer-events-auto" data-class="sorcerer" onclick="window.selectClass('sorcerer')"><span>Sorcerer</span><small>Arcane force</small></button>
-        <button type="button" class="class-card class-card--druid pointer-events-auto" data-class="druid" onclick="window.selectClass('druid')"><span>Druid</span><small>Wild growth</small></button>
-        <button type="button" class="class-card class-card--paladin pointer-events-auto" data-class="paladin" onclick="window.selectClass('paladin')"><span>Paladin</span><small>Oathbound</small></button>
-        <div class="wheel-center-mark" aria-hidden="true">✦</div>
-      </section>
-
-      <button type="button" class="start-button pointer-events-auto" onclick="window.openServerBrowser(); document.getElementById('server-browser').hidden = false; document.getElementById('roomCode').focus();">
-        <span class="start-button__halo" aria-hidden="true"></span>
-        <span class="start-button__label">Start</span>
-        <span class="start-button__sub">Enter the arena</span>
+      <!-- 2. "Host Game" button -->
+      <button id="btn-host" data-direct-action="true" type="button" class="w-full py-4 mb-4 bg-gradient-to-r from-amber-800 via-amber-600 to-amber-800 hover:from-amber-700 hover:to-amber-500 text-amber-100 font-serif font-bold text-lg sm:text-xl rounded-xl border border-amber-400/60 shadow-[0_6px_25px_rgba(0,0,0,0.7)] hover:shadow-[0_0_30px_rgba(245,158,11,0.5)] transition-all transform hover:scale-[1.03] active:scale-[0.97] pointer-events-auto cursor-pointer" onclick="window.hostMatch()">
+        Host Game
       </button>
 
-      <div id="team-select" class="legacy-select" aria-hidden="true"><button class="team-btn selected" data-team="0" type="button">Red</button><button class="team-btn" data-team="1" type="button">Blue</button></div>
-      <div id="map-select" class="legacy-select" aria-hidden="true"><button class="map-btn selected" data-map="Desert Ruins" type="button">Desert</button></div>
-    </div>
-
-    <div id="server-browser" class="server-browser" hidden role="dialog" aria-modal="true" aria-labelledby="server-browser-title">
-      <div class="parchment-scroll">
-        <button type="button" class="scroll-close pointer-events-auto" aria-label="Close server browser" onclick="window.closeServerBrowser(); document.getElementById('server-browser').hidden = true;">×</button>
-        <p class="parchment-eyebrow">The Astral Gate</p>
-        <h2 id="server-browser-title">Server Browser</h2>
-        <div class="parchment-divider" aria-hidden="true">✦</div>
-        <select id="mapSelect" class="bg-stone-800 text-amber-500 p-2 rounded mb-4 w-full font-serif border border-amber-900 pointer-events-auto"><option value="Desert Ruins">Desert Ruins</option><option value="Swamp">Swamp</option><option value="Village Outpost">Village Outpost</option></select>
-        <button id="btn-host" data-direct-action="true" type="button" class="parchment-action pointer-events-auto" onclick="window.hostMatch()">Host Game</button>
-        <div class="join-section">
-          <label for="roomCode">Join Game</label>
-          <div class="join-row">
-            <input id="roomCode" name="roomCode" type="text" maxlength="4" inputmode="text" spellcheck="false" autocomplete="off" autocapitalize="characters" placeholder="ABCD" aria-label="Four character room code" class="pointer-events-auto" />
-            <button id="btn-join" data-direct-action="true" type="button" class="parchment-action parchment-action--join pointer-events-auto" onclick="window.joinMatch(document.getElementById('roomCode').value)">Join</button>
-          </div>
+      <!-- 3. "Join Game" section (input field + button) -->
+      <div class="join-section w-full p-4 mb-4 rounded-xl bg-stone-900/85 border border-amber-600/40 backdrop-blur-md shadow-2xl flex flex-col items-center pointer-events-auto">
+        <label for="roomCode" class="text-amber-300 font-serif text-xs font-semibold uppercase tracking-[0.25em] mb-2.5">
+          Join Game
+        </label>
+        <div class="flex gap-2.5 w-full">
+          <input id="roomCode" name="roomCode" type="text" maxlength="4" autocomplete="off" autocapitalize="characters" placeholder="CODE" class="flex-1 bg-stone-800/90 text-amber-200 border border-amber-600/50 rounded-lg px-3 py-2 text-center font-serif text-lg tracking-widest uppercase placeholder-stone-500 focus:outline-none focus:border-amber-400 focus:ring-1 focus:ring-amber-400/50 pointer-events-auto" />
+          <button id="btn-join" data-direct-action="true" type="button" class="px-5 py-2 bg-gradient-to-r from-amber-700 to-amber-600 hover:from-amber-600 hover:to-amber-500 text-amber-100 font-serif font-bold text-base rounded-lg border border-amber-400/50 shadow transition-all transform hover:scale-105 active:scale-95 pointer-events-auto cursor-pointer" onclick="window.joinMatch(document.getElementById('roomCode').value.trim())">
+            Join
+          </button>
         </div>
-        <p id="server-browser-hint">Speak the four-letter sigil to cross the veil.</p>
       </div>
-    </div>
-  </div>
 
-  <div id="enter-lobby-overlay" class="fixed inset-0 z-50 flex flex-col items-center justify-center bg-black/75 backdrop-blur-sm cursor-pointer pointer-events-auto" style="display: none;">
-    <div class="text-center p-8 border-2 border-amber-600/70 rounded-2xl bg-stone-900/95 shadow-2xl max-w-md pointer-events-auto">
-      <p class="text-amber-500 font-serif tracking-widest text-xs uppercase mb-1">Playable 3D Multiplayer Lobby</p>
-      <h2 class="text-3xl font-bold font-serif text-amber-300 mb-2">Roundtable Hold</h2>
-      <p class="text-stone-300 font-serif mb-6 text-sm">Gathering place of champions. Control your hero with WASD and look around with mouse.</p>
-      <button id="btn-enter-lobby" type="button" class="px-8 py-3.5 bg-gradient-to-r from-amber-700 via-amber-600 to-amber-700 hover:from-amber-600 hover:to-amber-500 text-amber-100 font-bold font-serif text-lg rounded-xl shadow-xl border border-amber-400/60 transition-all transform hover:scale-105 active:scale-95 pointer-events-auto">
-        Click to Enter Lobby
+      <!-- 4. "Settings" button at the bottom -->
+      <button id="btn-settings" type="button" class="w-full py-3 bg-stone-900/80 hover:bg-stone-800 text-amber-300/90 hover:text-amber-100 font-serif text-sm tracking-widest uppercase rounded-lg border border-amber-800/40 hover:border-amber-500/60 shadow-lg transition-all transform hover:scale-[1.02] active:scale-[0.98] pointer-events-auto cursor-pointer" onclick="window.openSettings()">
+        Settings
       </button>
+
+    </div>
+
+    <!-- Settings Modal -->
+    <div id="settings-modal" class="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm pointer-events-auto" style="display: none;">
+      <div class="relative w-full max-w-sm p-6 mx-4 rounded-2xl bg-stone-900/95 border-2 border-amber-600/70 shadow-2xl font-serif text-amber-100 pointer-events-auto">
+        <button type="button" class="absolute top-4 right-4 text-stone-400 hover:text-amber-300 text-2xl font-bold leading-none cursor-pointer" onclick="window.closeSettings()">&times;</button>
+        <h3 class="text-2xl font-bold text-amber-300 mb-6 text-center tracking-wide">Settings</h3>
+        
+        <div class="mb-5">
+          <div class="flex justify-between items-center mb-1 text-sm text-amber-200">
+            <span>Mouse Sensitivity</span>
+            <span id="sens-value">1.0x</span>
+          </div>
+          <input id="setting-sensitivity" type="range" min="0.2" max="2.5" step="0.1" value="1.0" class="w-full accent-amber-500 cursor-pointer pointer-events-auto" oninput="window.setMouseSensitivity(this.value)" />
+        </div>
+
+        <div class="mb-6">
+          <div class="flex justify-between items-center mb-1 text-sm text-amber-200">
+            <span>Master Volume</span>
+            <span id="vol-value">80%</span>
+          </div>
+          <input id="setting-volume" type="range" min="0" max="100" step="5" value="80" class="w-full accent-amber-500 cursor-pointer pointer-events-auto" oninput="document.getElementById('vol-value').textContent = this.value + '%'" />
+        </div>
+
+        <button type="button" class="w-full py-2.5 bg-gradient-to-r from-amber-700 to-amber-600 hover:from-amber-600 hover:to-amber-500 text-amber-100 font-bold rounded-lg border border-amber-400/50 shadow transition-all cursor-pointer pointer-events-auto" onclick="window.closeSettings()">
+          Done
+        </button>
+      </div>
     </div>
   </div>
 

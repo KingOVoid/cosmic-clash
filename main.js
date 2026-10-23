@@ -155,7 +155,14 @@ window.hostMatch = async function (mapName) {
   if (masterUi) {
     masterUi.style.display = 'none';
   }
-  document.body.requestPointerLock();
+  try {
+    document.body.requestPointerLock();
+  } catch (e) {
+    console.warn("Pointer lock request failed:", e);
+  }
+  window.gameState = 'ROUNDTABLE_LOBBY';
+  gameStarted = true;
+
   const mapSelectEl = document.getElementById('mapSelect');
   const selectedMap = mapSelectEl ? mapSelectEl.value : (mapName || 'PENDING');
   if (window.Playroom && typeof window.Playroom.setState === 'function') {
@@ -172,8 +179,37 @@ window.joinMatch = async function (roomCode) {
   if (masterUi) {
     masterUi.style.display = 'none';
   }
-  document.body.requestPointerLock();
+  try {
+    document.body.requestPointerLock();
+  } catch (e) {
+    console.warn("Pointer lock request failed:", e);
+  }
+  window.gameState = 'ROUNDTABLE_LOBBY';
+  gameStarted = true;
   return await joinMatch(roomCode);
+};
+
+window.mouseSensitivity = 1.0;
+window.setMouseSensitivity = function (val) {
+  window.mouseSensitivity = parseFloat(val) || 1.0;
+  const label = document.getElementById("sens-value");
+  if (label) {
+    label.textContent = window.mouseSensitivity.toFixed(1) + "x";
+  }
+};
+
+window.openSettings = function () {
+  const modal = document.getElementById("settings-modal");
+  if (modal) {
+    modal.style.display = "flex";
+  }
+};
+
+window.closeSettings = function () {
+  const modal = document.getElementById("settings-modal");
+  if (modal) {
+    modal.style.display = "none";
+  }
 };
 
 export async function selectClass(className) {
@@ -372,6 +408,9 @@ window.addEventListener("keyup", (event) => {
 });
 
 function readKeyboardMove() {
+  if (document.activeElement && (document.activeElement.tagName === "INPUT" || document.activeElement.tagName === "TEXTAREA")) {
+    return { x: 0, y: 0 };
+  }
   let x = 0;
   let y = 0;
   if (keys.KeyW || keys.ArrowUp) {
@@ -684,10 +723,7 @@ function pullIncomingHits(localFighter) {
 }
 
 function updateLocalPlayer(dt) {
-  const player = getLocalPlayer();
-  if (!player) {
-    return null;
-  }
+  const player = getLocalPlayer() || { id: "local-hero", getState: () => null, setState: () => {} };
   const avatar = avatars.get(player.id);
   const fighter = getAllFighters().get(player.id);
   if (!avatar || !fighter) {
@@ -1161,22 +1197,31 @@ function initPointerLockControls() {
   const lockPointer = () => {
     try {
       document.body.requestPointerLock();
-    } catch (e) {}
+    } catch (e) {
+      console.warn("Pointer lock error:", e);
+    }
   };
   if (hostBtn) hostBtn.addEventListener("click", lockPointer);
   if (joinBtn) joinBtn.addEventListener("click", lockPointer);
 
-  canvas.addEventListener("click", () => {
-    if (gameStarted && !document.pointerLockElement) {
+  // Global click listener to renderer.domElement (the canvas)
+  renderer.domElement.addEventListener("click", () => {
+    const state = window.gameState;
+    const masterUi = document.getElementById("master-ui");
+    const isMenuVisible = masterUi && masterUi.style.display !== "none";
+    if (isMenuVisible) {
+      return;
+    }
+    if ((state === "ROUNDTABLE_LOBBY" || state === "PLAYING" || state === "IN_GAME") && !document.pointerLockElement) {
       lockPointer();
     }
   });
 
   window.addEventListener("mousemove", (event) => {
     if (document.pointerLockElement) {
-      const MOUSE_SENSITIVITY = 0.0024;
-      cameraYaw -= event.movementX * MOUSE_SENSITIVITY;
-      cameraPitch -= event.movementY * MOUSE_SENSITIVITY;
+      const sens = 0.0024 * (window.mouseSensitivity || 1.0);
+      cameraYaw -= event.movementX * sens;
+      cameraPitch -= event.movementY * sens;
       cameraPitch = Math.max(-0.45, Math.min(1.15, cameraPitch));
     }
   });
@@ -1228,73 +1273,18 @@ if (bannerBtn) {
   });
 }
 
-function setupEnterLobbyOverlay() {
-  const overlay = document.getElementById("enter-lobby-overlay");
-  const btnEnter = document.getElementById("btn-enter-lobby");
-  const startBtn = document.querySelector(".start-button");
-
-  const activateLobby = () => {
-    try {
-      document.body.requestPointerLock();
-    } catch (e) {}
-    if (overlay) overlay.style.display = "none";
-    const masterUi = document.getElementById("master-ui");
-    if (masterUi) masterUi.style.display = "none";
-    gameStarted = true;
-    window.gameState = "ROUNDTABLE_LOBBY";
-
-    let local = getLocalPlayer() || { id: "local-hero", getState: () => null, setState: () => {} };
-    let av = avatars.get(local.id);
-    if (!av) {
-      av = createAvatar(local);
-    }
-    setupCameraForLocalPlayer(av);
-  };
-
-  if (btnEnter) {
-    btnEnter.addEventListener("click", activateLobby);
-  }
-  if (overlay) {
-    overlay.addEventListener("click", (e) => {
-      if (e.target === overlay || e.target.closest("#btn-enter-lobby")) {
-        activateLobby();
-      }
-    });
-  }
-  if (startBtn) {
-    startBtn.addEventListener("click", () => {
-      if (overlay) {
-        overlay.style.display = "flex";
-      } else {
-        activateLobby();
-      }
-    });
-  }
-
-  document.addEventListener("pointerlockchange", () => {
-    if (!document.pointerLockElement && gameStarted && overlay) {
-      overlay.style.display = "flex";
-    }
-  });
-}
-
 function frame(now) {
   const dt = Math.min(0.05, (now - lastFrameTime) / 1000);
   lastFrameTime = now;
-
-  // Pause background rendering updates if server browser is open
-  if (window.isServerBrowserOpen) {
-    renderer.render(scene, camera);
-    requestAnimationFrame(frame);
-    return;
-  }
 
   if (currentMapData && currentMapData.update) {
     currentMapData.update(dt, now / 1000);
   }
 
+  // Ensure WASD movement, gravity/physics, and 3rd-person camera rotation are fully active when gameState === 'ROUNDTABLE_LOBBY' or 'PLAYING'
+  const isMovementActive = window.gameState === "ROUNDTABLE_LOBBY" || window.gameState === "PLAYING" || window.gameState === "IN_GAME" || gameStarted;
   let localAvatar = null;
-  if (gameStarted) {
+  if (isMovementActive) {
     localAvatar = updateLocalPlayer(dt);
     followLocalPlayer(localAvatar, dt);
     syncRemotePlayers(dt);
@@ -1315,7 +1305,7 @@ function frame(now) {
       pushLocalNetworkState(localAvatar);
     }
   } else {
-    // Before pointerlock entry, keep local avatar and camera updated
+    // Before active state, keep local avatar and camera updated
     const local = getLocalPlayer() || { id: "local-hero" };
     const av = avatars.get(local.id);
     if (av) {
@@ -1382,7 +1372,6 @@ async function boot() {
 
   bindJoinHandlers();
   initLobby();
-  setupEnterLobbyOverlay();
   requestAnimationFrame(frame);
 
   // Pre-spawn local hero avatar immediately in SharedLobby so 3D world is populated right away
