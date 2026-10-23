@@ -30,6 +30,32 @@ let quitHandler = null;
 let sessionReady = false;
 let localPlayer = null;
 
+if (typeof window !== "undefined" && (!window.Playroom || typeof window.Playroom.insertCoin !== "function")) {
+  const fallbackScript = document.createElement("script");
+  fallbackScript.src = "./dist/playroomkit.js";
+  document.head.appendChild(fallbackScript);
+}
+
+async function ensurePlayroom() {
+  if (window.Playroom && typeof window.Playroom.insertCoin === "function") {
+    return window.Playroom;
+  }
+  await new Promise((resolve) => {
+    const script = document.createElement("script");
+    script.src = "./dist/playroomkit.js";
+    script.onload = () => resolve();
+    script.onerror = () => {
+      const cdnFallback = document.createElement("script");
+      cdnFallback.src = "https://unpkg.com/playroomkit/multiplayer.full.umd.js";
+      cdnFallback.onload = () => resolve();
+      cdnFallback.onerror = () => resolve();
+      document.head.appendChild(cdnFallback);
+    };
+    document.head.appendChild(script);
+  });
+  return window.Playroom;
+}
+
 function getPlayroom() {
   const playroom = window.Playroom;
   if (!playroom || typeof playroom.insertCoin !== "function") {
@@ -155,6 +181,7 @@ function showAssignedRoomCode(code) {
 }
 
 async function connectToRoom(options) {
+  await ensurePlayroom();
   const Playroom = getPlayroom();
   setButtonsDisabled(true);
   setLobbyMessage(options.roomCode ? `Joining ${options.roomCode}…` : "Opening a new arena…");

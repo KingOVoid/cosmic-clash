@@ -7,7 +7,6 @@
   <meta name="mobile-web-app-capable" content="yes" />
   <title>Cosmic Clash</title>
   <link rel="stylesheet" href="./style.css" />
-  <script src="https://unpkg.com/playroomkit/dist/playroomkit.js"></script>
   <script type="importmap">
   {
     "imports": {
@@ -16,6 +15,9 @@
     }
   }
   </script>
+  <script src="https://unpkg.com/playroomkit/dist/playroomkit.js"></script>
+  <script type="module" src="./network.js"></script>
+  <script type="module" src="./main.js"></script>
 </head>
 <body>
   <div id="lobby">
@@ -92,8 +94,5 @@
       <div class="joystick-knob"></div>
     </div>
   </div>
-
-  <script type="module" src="./network.js"></script>
-  <script type="module" src="./main.js"></script>
 </body>
 </html>
