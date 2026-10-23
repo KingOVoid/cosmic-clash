@@ -226,6 +226,46 @@ class AssetManagerImpl {
     }
   }
 
+  async loadCharacter(classId) {
+    const id = (classId || "rogue").toLowerCase();
+    const urls = [
+      MODEL_FILES[id],
+      `./models/${id}.glb`,
+      `./assets/characters/${id}.glb`,
+      `./assets/models/${id}.glb`,
+      `./assets/${id}.glb`,
+      `./models/${id}.gltf`
+    ].filter(Boolean);
+
+    for (let i = 0; i < urls.length; i += 1) {
+      try {
+        const gltf = await this.loader.loadAsync(urls[i]);
+        if (gltf && gltf.scene) {
+          enableShadows(gltf.scene);
+          fitModel(gltf.scene);
+          const entry = {
+            scene: gltf.scene,
+            clips: Array.isArray(gltf.animations) ? gltf.animations : [],
+            fallback: false
+          };
+          this.templates.set(id, entry);
+          return entry;
+        }
+      } catch (e) {
+        // Continue to next candidate
+      }
+    }
+
+    if (!this.templates.has(id)) {
+      this.templates.set(id, {
+        scene: null,
+        clips: this.fallbackClips,
+        fallback: true
+      });
+    }
+    return this.templates.get(id);
+  }
+
   async loadEnvModel(key, urls, fallbackFactory) {
     for (let i = 0; i < urls.length; i += 1) {
       try {

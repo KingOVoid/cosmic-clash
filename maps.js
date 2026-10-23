@@ -1243,3 +1243,106 @@ export class MapGenerator {
     return MapGenerator.createOvergrownSanctum(scene, envAssets);
   }
 }
+
+export class LobbyEnvironment {
+  static scene = null;
+  static camera = null;
+  static currentRoom = null;
+  static characterRig = null;
+  static currentClass = "rogue";
+
+  static init(scene, camera) {
+    LobbyEnvironment.scene = scene;
+    LobbyEnvironment.camera = camera;
+  }
+
+  static loadRoom(className, envAssets = null) {
+    const scene = LobbyEnvironment.scene || (typeof window !== "undefined" && window._threeScene);
+    const camera = LobbyEnvironment.camera || (typeof window !== "undefined" && window._threeCamera);
+
+    if (LobbyEnvironment.currentRoom && LobbyEnvironment.currentRoom.dispose) {
+      LobbyEnvironment.currentRoom.dispose();
+      LobbyEnvironment.currentRoom = null;
+    }
+    LobbyEnvironment.characterRig = null;
+    LobbyEnvironment.currentClass = (className || "rogue").toLowerCase();
+
+    const assets = envAssets || AssetManager.envModels;
+    const room = MapGenerator.createLobbyScene(scene, LobbyEnvironment.currentClass, assets);
+    LobbyEnvironment.currentRoom = room;
+
+    // Cinematic fixed camera position looking at center of diorama,
+    // leaving the right side visually empty for the upcoming HTML "Start" button.
+    if (camera) {
+      camera.position.set(-1.4, 2.3, 6.5);
+      camera.lookAt(1.4, 1.2, 0);
+      camera.updateProjectionMatrix();
+    }
+
+    return room;
+  }
+
+  static setCharacter(className) {
+    const scene = LobbyEnvironment.scene || (typeof window !== "undefined" && window._threeScene);
+    if (!scene || !LobbyEnvironment.currentRoom) {
+      return null;
+    }
+
+    // Remove previous character mesh from diorama if any
+    if (LobbyEnvironment.characterRig && LobbyEnvironment.characterRig.root) {
+      scene.remove(LobbyEnvironment.characterRig.root);
+      if (LobbyEnvironment.currentRoom.group) {
+        LobbyEnvironment.currentRoom.group.remove(LobbyEnvironment.characterRig.root);
+      }
+      LobbyEnvironment.characterRig = null;
+    }
+
+    const classId = (className || LobbyEnvironment.currentClass || "rogue").toLowerCase();
+    const rig = AssetManager.createRig(classId);
+
+    // Place the 3D character mesh directly in the center of the active diorama
+    rig.root.position.set(0, 0, 0);
+    rig.root.rotation.set(0, 0.35, 0);
+    rig.play("Idle");
+
+    if (LobbyEnvironment.currentRoom.group) {
+      LobbyEnvironment.currentRoom.group.add(rig.root);
+    } else {
+      scene.add(rig.root);
+    }
+
+    LobbyEnvironment.characterRig = rig;
+    return rig;
+  }
+
+  static update(dt, elapsed) {
+    if (LobbyEnvironment.currentRoom && LobbyEnvironment.currentRoom.update) {
+      LobbyEnvironment.currentRoom.update(dt, elapsed);
+    }
+    if (LobbyEnvironment.characterRig && LobbyEnvironment.characterRig.update) {
+      LobbyEnvironment.characterRig.update(dt);
+    }
+    const camera = LobbyEnvironment.camera || (typeof window !== "undefined" && window._threeCamera);
+    if (camera && (typeof window !== "undefined" && (window.gameState === "LOBBY" || window.gameState === "TITLE_SCREEN"))) {
+      camera.position.set(-1.4, 2.3, 6.5);
+      camera.lookAt(1.4, 1.2, 0);
+    }
+  }
+
+  static dispose() {
+    if (LobbyEnvironment.characterRig && LobbyEnvironment.characterRig.root) {
+      if (LobbyEnvironment.scene) {
+        LobbyEnvironment.scene.remove(LobbyEnvironment.characterRig.root);
+      }
+      LobbyEnvironment.characterRig = null;
+    }
+    if (LobbyEnvironment.currentRoom && LobbyEnvironment.currentRoom.dispose) {
+      LobbyEnvironment.currentRoom.dispose();
+      LobbyEnvironment.currentRoom = null;
+    }
+  }
+}
+
+if (typeof window !== "undefined") {
+  window.LobbyEnvironment = LobbyEnvironment;
+}

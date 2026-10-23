@@ -27,7 +27,7 @@ import {
   updateHazards,
   upsertFighter
 } from "./combat.js";
-import { MapGenerator } from "./maps.js";
+import { MapGenerator, LobbyEnvironment } from "./maps.js";
 import { VFXManager } from "./vfx.js";
 import {
   getConnectedPlayers,
@@ -40,7 +40,9 @@ import {
   publishLocalPose,
   selectedClass,
   selectedTeam,
-  selectedMap
+  selectedMap,
+  hostMatch,
+  joinMatch
 } from "./network.js";
 
 const CAMERA_LERP = 8.5;
@@ -98,13 +100,52 @@ VFXManager.attach(scene);
 
 let activeMapType = "Desert Ruins";
 let currentMapData = null;
-let currentLobbyData = null;
+
+// ==========================================
+// GLOBAL STATE & HOOKS FOR EXTERNAL UI
+// ==========================================
+window.gameState = "TITLE_SCREEN";
+window.isServerBrowserOpen = false;
+
+window.openServerBrowser = function () {
+  window.isServerBrowserOpen = true;
+};
+
+window.closeServerBrowser = function () {
+  window.isServerBrowserOpen = false;
+};
+
+window.hostMatch = hostMatch;
+window.joinMatch = joinMatch;
+
+export async function selectClass(className) {
+  const id = (className || selectedClass || "rogue").toLowerCase();
+  // 1. Set gameState = 'LOBBY'
+  window.gameState = "LOBBY";
+
+  // 3. Call LobbyEnvironment.loadRoom(className) to switch 3D scene to corresponding diorama
+  LobbyEnvironment.loadRoom(id, AssetManager.envModels);
+
+  // 2. Trigger AssetManager to quietly load the selected character's .glb model in background
+  try {
+    await AssetManager.loadCharacter(id);
+  } catch (e) {
+    console.warn("Quiet load character model:", e);
+  }
+
+  // When selectClass resolves, place 3D character mesh directly in center of active diorama
+  LobbyEnvironment.setCharacter(id);
+  return id;
+}
+window.selectClass = selectClass;
+
+export function updateLobbyScene(className) {
+  selectClass(className);
+}
+window.updateLobbyScene = updateLobbyScene;
 
 export function loadMap(type) {
-  if (currentLobbyData && currentLobbyData.dispose) {
-    currentLobbyData.dispose();
-    currentLobbyData = null;
-  }
+  LobbyEnvironment.dispose();
   if (currentMapData && currentMapData.dispose) {
     currentMapData.dispose();
   }
@@ -112,24 +153,6 @@ export function loadMap(type) {
   currentMapData = MapGenerator.loadMap(scene, activeMapType, AssetManager.envModels);
   return currentMapData;
 }
-
-export function updateLobbyScene(className) {
-  if (gameStarted) {
-    return;
-  }
-  if (currentLobbyData && currentLobbyData.dispose) {
-    currentLobbyData.dispose();
-    currentLobbyData = null;
-  }
-  if (currentMapData && currentMapData.dispose) {
-    currentMapData.dispose();
-    currentMapData = null;
-  }
-  currentLobbyData = MapGenerator.createLobbyScene(scene, className, AssetManager.envModels);
-  camera.position.set(0, 3.4, 9.2);
-  camera.lookAt(0, 1.8, 0);
-}
-window.updateLobbyScene = updateLobbyScene;
 
 // Ensure the floor THREE.Box3 is generated before physics loop starts applying gravity
 currentMapData = MapGenerator.loadMap(scene, 'Desert Ruins');
@@ -1097,17 +1120,20 @@ function frame(now) {
   const dt = Math.min(0.05, (now - lastFrameTime) / 1000);
   lastFrameTime = now;
 
+  // Pause background rendering updates if server browser is open
+  if (window.isServerBrowserOpen) {
+    renderer.render(scene, camera);
+    requestAnimationFrame(frame);
+    return;
+  }
+
   if (currentMapData && currentMapData.update) {
     currentMapData.update(dt, now / 1000);
   }
 
-  // Lobby 3D Scene Animation & Camera Orbit
-  if (!gameStarted && currentLobbyData && currentLobbyData.update) {
-    currentLobbyData.update(dt, now / 1000);
-    const orbitT = (now / 1000) * 0.15;
-    camera.position.x = Math.sin(orbitT) * 1.6;
-    camera.position.z = 9.2 + Math.cos(orbitT) * 0.7;
-    camera.lookAt(0, 1.8, 0);
+  // Lobby 3D Scene Animation & Camera Position Lock
+  if ((window.gameState === "TITLE_SCREEN" || window.gameState === "LOBBY") && !gameStarted) {
+    LobbyEnvironment.update(dt, now / 1000);
   }
 
   let localAvatar = null;
@@ -1139,10 +1165,8 @@ function frame(now) {
 
 window.addEventListener("cosmic-clash-start", () => {
   gameStarted = true;
-  if (currentLobbyData && currentLobbyData.dispose) {
-    currentLobbyData.dispose();
-    currentLobbyData = null;
-  }
+  window.gameState = "IN_GAME";
+  LobbyEnvironment.dispose();
   loadMap(selectedMap || "Desert Ruins");
 
   const mobile = document.getElementById("mobile-controls");
@@ -1170,15 +1194,28 @@ window.addEventListener("cosmic-clash-map-change", (event) => {
 
 async function boot() {
   initPointerLockControls();
+  window._threeScene = scene;
+  window._threeCamera = camera;
+  LobbyEnvironment.init(scene, camera);
+
   // Ensure the floor THREE.Box3 is generated before physics loop starts applying gravity
   currentMapData = MapGenerator.loadMap(scene, 'Desert Ruins');
-  // Load initial 3D lobby scene for selected class (rogue by default)
-  updateLobbyScene(selectedClass || "rogue");
+
+  // Initial title screen state & diorama
+  window.gameState = "TITLE_SCREEN";
+  LobbyEnvironment.loadRoom(selectedClass || "rogue", AssetManager.envModels);
+
   bindJoinHandlers();
   initLobby();
   requestAnimationFrame(frame);
+
   await AssetManager.loadModels();
   assetsReady = true;
+
+  // Place initial character model in center of diorama once assets ready
+  if (window.gameState !== "IN_GAME") {
+    LobbyEnvironment.setCharacter(selectedClass || "rogue");
+  }
 }
 
 boot();

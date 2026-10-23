@@ -269,6 +269,48 @@ export function startGame() {
   window.dispatchEvent(new CustomEvent("cosmic-clash-start"));
 }
 
+export async function hostMatch() {
+  try {
+    document.body.requestPointerLock();
+  } catch (e) {}
+  if (sessionReady) {
+    return;
+  }
+  try {
+    await connectToRoom({});
+  } catch (error) {
+    setButtonsDisabled(false);
+    setLobbyMessage(error.message || "Could not host a room.");
+    throw error;
+  }
+}
+
+export async function joinMatch(roomCode) {
+  try {
+    document.body.requestPointerLock();
+  } catch (e) {}
+  if (sessionReady) {
+    return;
+  }
+  const code = normalizeRoomCode(roomCode);
+  if (code.length !== 4) {
+    setLobbyMessage("Enter a 4-character room code to join.");
+    throw new Error("Enter a 4-character room code to join.");
+  }
+  try {
+    await connectToRoom({ roomCode: code });
+  } catch (error) {
+    setButtonsDisabled(false);
+    setLobbyMessage(error.message || "Could not join that room.");
+    throw error;
+  }
+}
+
+if (typeof window !== "undefined") {
+  window.hostMatch = hostMatch;
+  window.joinMatch = joinMatch;
+}
+
 export function initLobby() {
   const hostButton = document.getElementById("btn-host");
   const joinButton = document.getElementById("btn-join");
@@ -286,7 +328,9 @@ export function initLobby() {
       classSelect.querySelectorAll(".class-card").forEach((node) => {
         node.classList.toggle("selected", node === button);
       });
-      if (typeof window.updateLobbyScene === "function") {
+      if (typeof window.selectClass === "function") {
+        window.selectClass(selectedClass);
+      } else if (typeof window.updateLobbyScene === "function") {
         window.updateLobbyScene(selectedClass);
       }
       window.dispatchEvent(new CustomEvent("cosmic-clash-class-change", { detail: selectedClass }));
@@ -333,38 +377,20 @@ export function initLobby() {
     });
   }
 
-  hostButton.addEventListener("click", async () => {
-    try {
-      document.body.requestPointerLock();
-    } catch (e) {}
-    if (sessionReady) {
-      return;
-    }
-    try {
-      await connectToRoom({});
-    } catch (error) {
-      setButtonsDisabled(false);
-      setLobbyMessage(error.message || "Could not host a room.");
-    }
-  });
+  if (hostButton) {
+    hostButton.addEventListener("click", async () => {
+      try {
+        await hostMatch();
+      } catch (e) {}
+    });
+  }
 
-  joinButton.addEventListener("click", async () => {
-    try {
-      document.body.requestPointerLock();
-    } catch (e) {}
-    if (sessionReady) {
-      return;
-    }
-    const roomCode = normalizeRoomCode(input ? input.value : "");
-    if (roomCode.length !== 4) {
-      setLobbyMessage("Enter a 4-character room code to join.");
-      return;
-    }
-    try {
-      await connectToRoom({ roomCode });
-    } catch (error) {
-      setButtonsDisabled(false);
-      setLobbyMessage(error.message || "Could not join that room.");
-    }
-  });
+  if (joinButton) {
+    joinButton.addEventListener("click", async () => {
+      const code = input ? input.value : "";
+      try {
+        await joinMatch(code);
+      } catch (e) {}
+    });
+  }
 }
