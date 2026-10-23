@@ -106,6 +106,24 @@ function ensurePlayerStats(player) {
 }
 
 function bindPlayer(player) {
+  const masterUi = document.getElementById("master-ui");
+  if (masterUi) {
+    masterUi.style.display = "none";
+  }
+  const debugSelectors = [
+    ".debug",
+    "#debug",
+    "[data-debug]",
+    "#server-browser-hint",
+    "#lobby-status",
+    "#room-code-display"
+  ];
+  debugSelectors.forEach((selector) => {
+    document.querySelectorAll(selector).forEach((el) => {
+      el.style.display = "none";
+    });
+  });
+
   const existing = connectedPlayers.find((entry) => entry.id === player.id);
   if (existing) {
     return existing;
@@ -116,7 +134,7 @@ function bindPlayer(player) {
   ensurePlayerStats(player);
 
   if (!player.getState("pos")) {
-    player.setState("pos", { x: 0, y: 1.1, z: 0 }, true);
+    player.setState("pos", { x: 0, y: 25, z: 0 }, true);
   }
   if (typeof player.getState("rot") !== "number") {
     player.setState("rot", 0, true);
@@ -180,7 +198,7 @@ function showAssignedRoomCode(code) {
   }
 }
 
-async function connectToRoom(options) {
+async function connectToRoom(options, mapName) {
   await ensurePlayroom();
   const Playroom = getPlayroom();
   setButtonsDisabled(true);
@@ -197,6 +215,12 @@ async function connectToRoom(options) {
 
   sessionReady = true;
   localPlayer = Playroom.myPlayer();
+
+  const chosen = mapName || selectedMap || "Desert";
+  if (!options.roomCode || (typeof Playroom.isHost === "function" && Playroom.isHost())) {
+    Playroom.setState("selectedMap", chosen, true);
+  }
+
   Playroom.onPlayerJoin(bindPlayer);
 
   const code = typeof Playroom.getRoomCode === "function" ? Playroom.getRoomCode() : options.roomCode;
@@ -253,6 +277,13 @@ export function publishCombat(player, fighter, lastHits, fx) {
 }
 
 export function startGame() {
+  const masterUi = document.getElementById("master-ui");
+  if (masterUi) {
+    masterUi.style.display = "none";
+  }
+  document.querySelectorAll(".debug, #debug, [data-debug], #server-browser-hint, #lobby-status, #room-code-display").forEach((el) => {
+    el.style.display = "none";
+  });
   document.body.classList.add("lobby-hidden");
   const lobby = document.getElementById("lobby");
   if (lobby) {
@@ -269,15 +300,16 @@ export function startGame() {
   window.dispatchEvent(new CustomEvent("cosmic-clash-start"));
 }
 
-export async function hostMatch() {
+export async function hostMatch(mapName) {
   try {
     document.body.requestPointerLock();
   } catch (e) {}
   if (sessionReady) {
     return;
   }
+  const chosenMap = mapName || selectedMap || "Desert";
   try {
-    await connectToRoom({});
+    await connectToRoom({}, chosenMap);
   } catch (error) {
     setButtonsDisabled(false);
     setLobbyMessage(error.message || "Could not host a room.");

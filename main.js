@@ -45,12 +45,14 @@ import {
   joinMatch
 } from "./network.js";
 
-const CAMERA_LERP = 8.5;
+const CAMERA_LERP = 12.0;
 const REMOTE_LERP = 12;
 const NETWORK_INTERVAL = 0.05;
 const JOYSTICK_MAX = 48;
 const ARENA_RADIUS = 22;
-const CAMERA_OFFSET = new THREE.Vector3(11.5, 15.5, 11.5);
+const CAMERA_OFFSET_Y = 2.5;
+const CAMERA_OFFSET_Z = 5.0;
+const CAMERA_OFFSET = new THREE.Vector3(0, CAMERA_OFFSET_Y, CAMERA_OFFSET_Z);
 
 const canvas = document.getElementById("game-canvas");
 const renderer = new THREE.WebGLRenderer({
@@ -98,7 +100,7 @@ const trapGeom = new THREE.CylinderGeometry(1, 1, 0.18, 8);
 
 VFXManager.attach(scene);
 
-let activeMapType = "Desert Ruins";
+let activeMapType = "Desert";
 let currentMapData = null;
 
 // ==========================================
@@ -149,13 +151,17 @@ export function loadMap(type) {
   if (currentMapData && currentMapData.dispose) {
     currentMapData.dispose();
   }
-  activeMapType = type || "Desert Ruins";
+  let target = type;
+  if (!target && window.Playroom && typeof window.Playroom.getState === "function") {
+    target = window.Playroom.getState("selectedMap");
+  }
+  activeMapType = target || selectedMap || "Desert";
   currentMapData = MapGenerator.loadMap(scene, activeMapType, AssetManager.envModels);
   return currentMapData;
 }
 
 // Ensure the floor THREE.Box3 is generated before physics loop starts applying gravity
-currentMapData = MapGenerator.loadMap(scene, 'Desert Ruins');
+currentMapData = MapGenerator.loadMap(scene, 'Desert');
 
 const avatars = new Map();
 const keys = Object.create(null);
@@ -169,7 +175,8 @@ const cameraRight = new THREE.Vector3();
 const worldUp = new THREE.Vector3(0, 1, 0);
 const fxMeshes = new Map();
 
-let yaw = 0;
+let cameraYaw = 0;
+let cameraPitch = 0.2;
 let networkAccumulator = 0;
 let lastFrameTime = performance.now();
 let gameStarted = false;
@@ -181,7 +188,7 @@ function spawnOffset(index) {
   const angle = (index / count) * Math.PI * 2;
   return {
     x: Math.cos(angle) * 8,
-    y: 15, // Drop from y = 15
+    y: 25, // Drop from y = 25 onto initialized floor
     z: Math.sin(angle) * 8
   };
 }
@@ -206,8 +213,8 @@ function createAvatar(player) {
 
   const mapSpawns = currentMapData && currentMapData.spawnPoints;
   const teamSpawn = mapSpawns && (mapSpawns[team % mapSpawns.length] || mapSpawns[0]);
-  const spawn = player.getState("pos") || (teamSpawn ? { x: teamSpawn.x, y: 15, z: teamSpawn.z } : spawnOffset(avatars.size));
-  const initialY = (spawn.y !== undefined && spawn.y > 0) ? spawn.y : 15;
+  const spawn = player.getState("pos") || (teamSpawn ? { x: teamSpawn.x, y: 25, z: teamSpawn.z } : spawnOffset(avatars.size));
+  const initialY = (spawn.y !== undefined && spawn.y >= 25) ? spawn.y : 25;
   rig.root.position.set(spawn.x, initialY, spawn.z);
   rig.root.rotation.y = player.getState("rot") || 0;
 
@@ -227,7 +234,7 @@ function createAvatar(player) {
     targetPos: new THREE.Vector3(spawn.x, rig.root.position.y, spawn.z),
     targetRot: rig.root.rotation.y,
     velocity: new THREE.Vector3(0, 0, 0),
-    isGrounded: true
+    isGrounded: false
   };
   rig.root.userData.avatar = avatar;
   rig.root.userData.velocity = avatar.velocity;
@@ -253,6 +260,21 @@ function refreshPlayerHud() {
 
 function bindJoinHandlers() {
   onNetworkPlayerJoin((player) => {
+    const masterUi = document.getElementById("master-ui");
+    if (masterUi) {
+      masterUi.style.display = "none";
+    }
+    document.querySelectorAll(".debug, #debug, [data-debug], #server-browser-hint, #lobby-status, #room-code-display").forEach((el) => {
+      el.style.display = "none";
+    });
+
+    if (window.Playroom && typeof window.Playroom.getState === "function") {
+      const syncdMap = window.Playroom.getState("selectedMap");
+      if (syncdMap && currentMapData && currentMapData.name !== syncdMap && currentMapData.type !== syncdMap.toLowerCase()) {
+        loadMap(syncdMap);
+      }
+    }
+
     if (!assetsReady) {
       return;
     }
@@ -260,10 +282,10 @@ function bindJoinHandlers() {
       const avatar = createAvatar(player);
       if (isPlayerLocal(player) && !player.getState("pos")) {
         const placed = spawnOffset(avatars.size - 1);
-        avatar.mesh.position.set(placed.x, 15, placed.z);
+        avatar.mesh.position.set(placed.x, 25, placed.z);
         avatar.velocity.set(0, 0, 0);
         avatar.isGrounded = false;
-        player.setState("pos", { x: placed.x, y: 15, z: placed.z }, true);
+        player.setState("pos", { x: placed.x, y: 25, z: placed.z }, true);
       }
     }
     refreshPlayerHud();
@@ -368,17 +390,27 @@ function bindJoystick(root, vector, onAim) {
 bindJoystick(document.getElementById("joystick-move"), moveInput, null);
 bindJoystick(document.getElementById("joystick-aim"), aimInput, (vector) => {
   if (Math.abs(vector.x) > 0.08) {
-    yaw -= vector.x * 0.065;
+    cameraYaw -= vector.x * 0.065;
+  }
+  if (Math.abs(vector.y) > 0.08) {
+    cameraPitch += vector.y * 0.04;
+    cameraPitch = Math.max(-0.45, Math.min(1.15, cameraPitch));
   }
 });
 
 function clampToArena(position, yLocked) {
-  if (activeMapType === "Desert Ruins" || activeMapType === "desert") {
+  const lower = (activeMapType || "").toLowerCase();
+  if (lower.includes("desert") || lower.includes("sands")) {
     position.x = Math.max(-15.5, Math.min(15.5, position.x));
     position.z = Math.max(-41.5, Math.min(41.5, position.z));
     return;
   }
-  if (activeMapType === "overgrown") {
+  if (lower.includes("swamp")) {
+    position.x = Math.max(-33.5, Math.min(33.5, position.x));
+    position.z = Math.max(-33.5, Math.min(33.5, position.z));
+    return;
+  }
+  if (lower.includes("village") || lower.includes("overgrown")) {
     position.x = Math.max(-28.2, Math.min(28.2, position.x));
     position.z = Math.max(-28.2, Math.min(28.2, position.z));
     return;
@@ -390,7 +422,7 @@ function clampToArena(position, yLocked) {
   if (Math.abs(position.z) > maxBound) {
     position.z = Math.sign(position.z) * maxBound;
   }
-  if (yLocked && activeMapType !== "magma" && activeMapType !== "clockwork") {
+  if (yLocked && !lower.includes("magma") && !lower.includes("clockwork")) {
     position.y = 0;
   }
 }
@@ -425,6 +457,13 @@ function fireAbility(kind) {
   const fighter = getAllFighters().get(player.id);
   if (!avatar || !fighter) {
     return;
+  }
+  if (document.pointerLockElement) {
+    camera.getWorldDirection(cameraForward);
+    cameraForward.y = 0;
+    if (cameraForward.lengthSq() > 0.0001) {
+      avatar.mesh.rotation.y = Math.atan2(cameraForward.x, cameraForward.z);
+    }
   }
   const origin = {
     x: avatar.mesh.position.x,
@@ -494,18 +533,22 @@ function followLocalPlayer(avatar, dt) {
   if (!avatar) {
     return;
   }
-  const orbit = 16.2;
+  const pos = avatar.mesh.position;
+  const horizontalDist = CAMERA_OFFSET_Z * Math.cos(cameraPitch);
+  const verticalDist = CAMERA_OFFSET_Z * Math.sin(cameraPitch);
+
   cameraGoal.set(
-    avatar.mesh.position.x + Math.sin(yaw) * orbit,
-    avatar.mesh.position.y + CAMERA_OFFSET.y,
-    avatar.mesh.position.z + Math.cos(yaw) * orbit
+    pos.x + Math.sin(cameraYaw) * horizontalDist,
+    pos.y + CAMERA_OFFSET_Y + verticalDist,
+    pos.z + Math.cos(cameraYaw) * horizontalDist
   );
+
   const t = 1 - Math.exp(-CAMERA_LERP * dt);
   camera.position.lerp(cameraGoal, t);
-  lookTarget.copy(avatar.mesh.position);
-  lookTarget.y += 0.8;
+
+  lookTarget.set(pos.x, pos.y + 1.4, pos.z);
   camera.lookAt(lookTarget);
-  sun.target.position.copy(avatar.mesh.position);
+  sun.target.position.copy(pos);
 }
 
 function mergeRemoteFighter(player) {
@@ -715,48 +758,57 @@ function updateLocalPlayer(dt) {
     }
   }
 
-  // Gravity & Continuous Floor Collision
-  const GRAVITY = -32;
-  const prevY = pos.y;
-  avatar.velocity.y += GRAVITY * dt;
-  const nextY = pos.y + avatar.velocity.y * dt;
+  // Gravity & Continuous Floor Collision with Spawn Clipping Failsafe
+  if (!MapGenerator.isLoaded) {
+    // Failsafe: gravity is 0 and Y-velocity is frozen until MapGenerator.isLoaded === true
+    avatar.velocity.y = 0;
+    if (pos.y < 25) {
+      pos.y = 25;
+    }
+    avatar.isGrounded = false;
+  } else {
+    const GRAVITY = -32;
+    const prevY = pos.y;
+    avatar.velocity.y += GRAVITY * dt;
+    const nextY = pos.y + avatar.velocity.y * dt;
 
-  // Ensure floor THREE.Box3 is generated before physics loop starts applying gravity
-  const platforms = (currentMapData && currentMapData.platformBoxes && currentMapData.platformBoxes.length > 0)
-    ? currentMapData.platformBoxes
-    : [new THREE.Box3(new THREE.Vector3(-60, -10, -60), new THREE.Vector3(60, 0, 60))];
+    // Ensure floor THREE.Box3 is generated before physics loop starts applying gravity
+    const platforms = (currentMapData && currentMapData.platformBoxes && currentMapData.platformBoxes.length > 0)
+      ? currentMapData.platformBoxes
+      : [new THREE.Box3(new THREE.Vector3(-60, -10, -60), new THREE.Vector3(60, 0, 60))];
 
-  let groundY = -Infinity;
-  for (let i = 0; i < platforms.length; i += 1) {
-    const p = platforms[i];
-    if (pos.x >= p.min.x && pos.x <= p.max.x && pos.z >= p.min.z && pos.z <= p.max.z) {
-      if (prevY >= p.max.y - 0.5 && nextY <= p.max.y) {
-        if (p.max.y > groundY) {
-          groundY = p.max.y;
-        }
-      } else if (nextY >= p.min.y && nextY <= p.max.y) {
-        if (p.max.y > groundY) {
-          groundY = p.max.y;
+    let groundY = -Infinity;
+    for (let i = 0; i < platforms.length; i += 1) {
+      const p = platforms[i];
+      if (pos.x >= p.min.x && pos.x <= p.max.x && pos.z >= p.min.z && pos.z <= p.max.z) {
+        if (prevY >= p.max.y - 0.5 && nextY <= p.max.y) {
+          if (p.max.y > groundY) {
+            groundY = p.max.y;
+          }
+        } else if (nextY >= p.min.y && nextY <= p.max.y) {
+          if (p.max.y > groundY) {
+            groundY = p.max.y;
+          }
         }
       }
     }
-  }
 
-  if (groundY !== -Infinity && nextY <= groundY) {
-    pos.y = groundY;
-    avatar.velocity.y = 0;
-    avatar.isGrounded = true;
-  } else {
-    pos.y = nextY;
-    avatar.isGrounded = false;
+    if (groundY !== -Infinity && nextY <= groundY) {
+      pos.y = groundY;
+      avatar.velocity.y = 0;
+      avatar.isGrounded = true;
+    } else {
+      pos.y = nextY;
+      avatar.isGrounded = false;
+    }
   }
 
   // Call CombatSystem.updateHazards()
   CombatSystem.updateHazards(avatar, currentMapData, dt);
 
-  // Falloff Failsafe: If player.position.y < -50, teleport to 0, 5, 0 and subtract 20% Max HP
+  // Falloff Failsafe: If player.position.y < -50, teleport to 0, 25, 0 and subtract 20% Max HP
   if (pos.y < -50) {
-    pos.set(0, 5, 0);
+    pos.set(0, 25, 0);
     avatar.velocity.set(0, 0, 0);
     if (fighter && fighter.state === "alive") {
       const penalty = Math.round(fighter.maxHp * 0.2);
@@ -773,11 +825,8 @@ function updateLocalPlayer(dt) {
     const aimZ = cameraRight.z * aimInput.x + cameraForward.z * aimInput.y;
     avatar.mesh.rotation.y = Math.atan2(aimX, aimZ);
   } else if (desiredMove.lengthSq() > 0.0001 && fighter.sidestepUntil <= 0) {
+    // Omnidirectional WASD: avatar faces the direction of desired movement (allows walking towards camera)
     avatar.mesh.rotation.y = Math.atan2(desiredMove.x, desiredMove.z);
-  } else if (document.pointerLockElement) {
-    camera.getWorldDirection(cameraForward);
-    cameraForward.y = 0;
-    avatar.mesh.rotation.y = Math.atan2(cameraForward.x, cameraForward.z);
   }
 
   clampToArena(avatar.mesh.position, false);
@@ -1035,13 +1084,13 @@ window.addEventListener("resize", onResize);
 
 window.addEventListener("keydown", (event) => {
   if (event.code === "Digit1") {
-    loadMap("Desert Ruins");
+    loadMap("Desert");
   } else if (event.code === "Digit2") {
-    loadMap("overgrown");
+    loadMap("Village");
   } else if (event.code === "Digit3") {
-    loadMap("magma");
+    loadMap("Swamp");
   } else if (event.code === "Digit4") {
-    loadMap("clockwork");
+    loadMap("magma");
   }
 });
 
@@ -1064,8 +1113,10 @@ function initPointerLockControls() {
 
   window.addEventListener("mousemove", (event) => {
     if (document.pointerLockElement) {
-      const MOUSE_SENSITIVITY = 0.0026;
-      yaw -= event.movementX * MOUSE_SENSITIVITY;
+      const MOUSE_SENSITIVITY = 0.0024;
+      cameraYaw -= event.movementX * MOUSE_SENSITIVITY;
+      cameraPitch -= event.movementY * MOUSE_SENSITIVITY;
+      cameraPitch = Math.max(-0.45, Math.min(1.15, cameraPitch));
     }
   });
 }
@@ -1167,7 +1218,25 @@ window.addEventListener("cosmic-clash-start", () => {
   gameStarted = true;
   window.gameState = "IN_GAME";
   LobbyEnvironment.dispose();
-  loadMap(selectedMap || "Desert Ruins");
+
+  let targetMap = "Desert";
+  if (window.Playroom && typeof window.Playroom.getState === "function") {
+    const syncd = window.Playroom.getState("selectedMap");
+    if (syncd) {
+      targetMap = syncd;
+    }
+  } else if (selectedMap) {
+    targetMap = selectedMap;
+  }
+  loadMap(targetMap);
+
+  const masterUi = document.getElementById("master-ui");
+  if (masterUi) {
+    masterUi.style.display = "none";
+  }
+  document.querySelectorAll(".debug, #debug, [data-debug], #server-browser-hint, #lobby-status, #room-code-display").forEach((el) => {
+    el.style.display = "none";
+  });
 
   const mobile = document.getElementById("mobile-controls");
   if (mobile) {
@@ -1179,7 +1248,7 @@ window.addEventListener("cosmic-clash-start", () => {
       avatar = createAvatar(player);
     }
     if (isPlayerLocal(player)) {
-      avatar.mesh.position.y = 15;
+      avatar.mesh.position.y = 25;
       avatar.velocity.set(0, 0, 0);
       avatar.isGrounded = false;
     }
@@ -1199,7 +1268,7 @@ async function boot() {
   LobbyEnvironment.init(scene, camera);
 
   // Ensure the floor THREE.Box3 is generated before physics loop starts applying gravity
-  currentMapData = MapGenerator.loadMap(scene, 'Desert Ruins');
+  currentMapData = MapGenerator.loadMap(scene, 'Desert');
 
   // Initial title screen state & diorama
   window.gameState = "TITLE_SCREEN";

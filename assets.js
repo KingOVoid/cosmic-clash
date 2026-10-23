@@ -179,6 +179,18 @@ function createFallbackSands() {
   return { geometry: geom, material: mat, scene: mesh };
 }
 
+function createFallbackSwamp() {
+  const geom = new THREE.BoxGeometry(60, 2, 60);
+  const mat = new THREE.MeshStandardMaterial({
+    color: 0x1f382a,
+    roughness: 0.9,
+    metalness: 0.1,
+    flatShading: true
+  });
+  const mesh = new THREE.Mesh(geom, mat);
+  return { geometry: geom, material: mat, scene: mesh };
+}
+
 class AssetManagerImpl {
   constructor() {
     this.loader = new GLTFLoader();
@@ -192,10 +204,14 @@ class AssetManagerImpl {
     this.sandsGeometry = null;
     this.sandsMaterial = null;
     this.sandsScene = null;
+    this.desertScene = null;
+    this.swampScene = null;
     this.envModels = {
       tree: null,
       rock: null,
-      sands: null
+      sands: null,
+      desert: null,
+      swamp: null
     };
   }
 
@@ -290,10 +306,16 @@ class AssetManagerImpl {
             } else if (key === "rock") {
               this.rockGeometry = entry.geometry;
               this.rockMaterial = entry.material;
-            } else if (key === "sands") {
+            } else if (key === "desert" || key === "sands") {
               this.sandsGeometry = entry.geometry;
               this.sandsMaterial = entry.material;
               this.sandsScene = gltf.scene;
+              this.desertScene = gltf.scene;
+              this.envModels.desert = entry;
+              this.envModels.sands = entry;
+            } else if (key === "swamp") {
+              this.swampScene = gltf.scene;
+              this.envModels.swamp = entry;
             }
             return entry;
           }
@@ -310,10 +332,16 @@ class AssetManagerImpl {
     } else if (key === "rock") {
       this.rockGeometry = fallback.geometry;
       this.rockMaterial = fallback.material;
-    } else if (key === "sands") {
+    } else if (key === "desert" || key === "sands") {
       this.sandsGeometry = fallback.geometry;
       this.sandsMaterial = fallback.material;
       this.sandsScene = fallback.scene;
+      this.desertScene = fallback.scene;
+      this.envModels.desert = fallback;
+      this.envModels.sands = fallback;
+    } else if (key === "swamp") {
+      this.swampScene = fallback.scene;
+      this.envModels.swamp = fallback;
     }
     return fallback;
   }
@@ -339,9 +367,22 @@ class AssetManagerImpl {
       createFallbackRock
     ));
     jobs.push(this.loadEnvModel(
-      "sands",
-      ["./assets/environment/sands map.gltf", "./assets/environment/sands.gltf"],
+      "desert",
+      [
+        "./assets/environment/desert/scene.gltf",
+        "./assets/environment/desert/sands.gltf",
+        "./assets/environment/desert/sands map.gltf",
+        "./assets/environment/sands map.gltf",
+        "./assets/environment/sands.gltf"
+      ],
       createFallbackSands
+    ));
+    jobs.push(this.loadEnvModel(
+      "swamp",
+      [
+        "./assets/environment/swamp/scene.gltf"
+      ],
+      createFallbackSwamp
     ));
     await Promise.all(jobs);
     this.ready = true;

@@ -3,6 +3,7 @@ import { GLTFLoader } from "three/addons/loaders/GLTFLoader.js";
 import { AssetManager } from "./assets.js";
 
 export class MapGenerator {
+  static isLoaded = false;
   static createMagmaCore(scene) {
     const group = new THREE.Group();
     group.name = "map-magma-core";
@@ -145,7 +146,7 @@ export class MapGenerator {
       platformBoxes,
       obstacleBoxes,
       hazards,
-      spawnPoints: [new THREE.Vector3(0, 0, 18), new THREE.Vector3(0, 0, -18)],
+      spawnPoints: [new THREE.Vector3(0, 25, 18), new THREE.Vector3(0, 25, -18)],
       update: (dt, elapsed) => {
         lavaMat.emissiveIntensity = 1.35 + Math.sin(elapsed * 2.5) * 0.25;
       },
@@ -315,7 +316,7 @@ export class MapGenerator {
       platformBoxes,
       obstacleBoxes,
       hazards,
-      spawnPoints: [new THREE.Vector3(0, 0, 0), new THREE.Vector3(0, 2.5, 28)],
+      spawnPoints: [new THREE.Vector3(0, 25, 0), new THREE.Vector3(0, 25, 28)],
       update: (dt, elapsed) => {
         padMaterial.emissiveIntensity = 1.6 + Math.sin(elapsed * 4.0) * 0.45;
       },
@@ -543,7 +544,7 @@ export class MapGenerator {
         trees: treeInstanced,
         rocks: rockInstanced
       },
-      spawnPoints: [new THREE.Vector3(0, 0, 0), new THREE.Vector3(-14, 0, 14), new THREE.Vector3(14, 0, -14)],
+      spawnPoints: [new THREE.Vector3(0, 25, 0), new THREE.Vector3(-14, 25, 14), new THREE.Vector3(14, 25, -14)],
       update: () => {},
       dispose: () => {
         scene.remove(group);
@@ -555,6 +556,9 @@ export class MapGenerator {
     const group = new THREE.Group();
     group.name = "map-desert-ruins";
     scene.add(group);
+
+    scene.fog = new THREE.FogExp2(0xd2b48c, 0.015);
+    scene.background = new THREE.Color(0xd2b48c);
 
     const platformBoxes = [];
     const obstacleBoxes = [];
@@ -601,9 +605,14 @@ export class MapGenerator {
       ));
     }
 
-    // Load sands.gltf model and position it at the center of the scene (0, 0, 0)
+    // Load desert scene.gltf model and position it at the center of the scene (0, 0, 0)
     let dioramaMesh = null;
-    const sandsData = envAssets && (envAssets.sands || (envAssets.getEnvModel && envAssets.getEnvModel("sands")) || (AssetManager && AssetManager.sandsScene && { scene: AssetManager.sandsScene }));
+    const sandsData = envAssets && (
+      envAssets.desert ||
+      envAssets.sands ||
+      (envAssets.getEnvModel && (envAssets.getEnvModel("desert") || envAssets.getEnvModel("sands"))) ||
+      (AssetManager && (AssetManager.desertScene || AssetManager.sandsScene) && { scene: AssetManager.desertScene || AssetManager.sandsScene })
+    );
 
     if (sandsData && sandsData.scene) {
       dioramaMesh = sandsData.scene.clone(true);
@@ -617,7 +626,13 @@ export class MapGenerator {
       group.add(dioramaMesh);
     } else {
       const loader = new GLTFLoader();
-      const urls = ["./assets/environment/sands.gltf", "./assets/environment/sands map.gltf"];
+      const urls = [
+        "./assets/environment/desert/scene.gltf",
+        "./assets/environment/desert/sands.gltf",
+        "./assets/environment/desert/sands map.gltf",
+        "./assets/environment/sands map.gltf",
+        "./assets/environment/sands.gltf"
+      ];
       const loadAttempt = (idx) => {
         if (idx >= urls.length) return;
         loader.load(urls[idx], (gltf) => {
@@ -666,12 +681,140 @@ export class MapGenerator {
       platformBoxes,
       obstacleBoxes,
       hazards,
-      spawnPoints: [new THREE.Vector3(0, 0, 10), new THREE.Vector3(0, 0, -10)],
+      spawnPoints: [new THREE.Vector3(0, 25, 10), new THREE.Vector3(0, 25, -10)],
       update: () => {},
       dispose: () => {
         scene.remove(group);
       }
     };
+  }
+
+  static createSwampMap(scene, envAssets) {
+    const group = new THREE.Group();
+    group.name = "map-swamp";
+    scene.add(group);
+
+    scene.fog = new THREE.FogExp2(0x1a2e1d, 0.02);
+    scene.background = new THREE.Color(0x142417);
+
+    const platformBoxes = [];
+    const obstacleBoxes = [];
+
+    // Collision: Large flat THREE.Box3 bounding box under the walkable area to act as the floor
+    const floorBox = new THREE.Box3(
+      new THREE.Vector3(-35, -2, -35),
+      new THREE.Vector3(35, 0, 35)
+    );
+    platformBoxes.push(floorBox);
+
+    // Collision: 4 static THREE.Box3 invisible perimeter walls
+    const wallNorth = new THREE.Box3(
+      new THREE.Vector3(-36, -2, 34),
+      new THREE.Vector3(36, 25, 38)
+    );
+    const wallSouth = new THREE.Box3(
+      new THREE.Vector3(-36, -2, -38),
+      new THREE.Vector3(36, 25, -34)
+    );
+    const wallEast = new THREE.Box3(
+      new THREE.Vector3(34, -2, -36),
+      new THREE.Vector3(38, 25, 36)
+    );
+    const wallWest = new THREE.Box3(
+      new THREE.Vector3(-38, -2, -36),
+      new THREE.Vector3(-34, 25, 36)
+    );
+
+    obstacleBoxes.push(wallNorth, wallSouth, wallEast, wallWest);
+
+    // Load swamp/scene.gltf model and position it at (0, 0, 0)
+    let dioramaMesh = null;
+    const swampData = envAssets && (
+      envAssets.swamp ||
+      (envAssets.getEnvModel && envAssets.getEnvModel("swamp")) ||
+      (AssetManager && AssetManager.swampScene && { scene: AssetManager.swampScene })
+    );
+
+    if (swampData && swampData.scene) {
+      dioramaMesh = swampData.scene.clone(true);
+      dioramaMesh.position.set(0, 0, 0);
+      dioramaMesh.traverse((child) => {
+        if (child.isMesh) {
+          child.castShadow = true;
+          child.receiveShadow = true;
+        }
+      });
+      group.add(dioramaMesh);
+    } else {
+      const loader = new GLTFLoader();
+      loader.load("./assets/environment/swamp/scene.gltf", (gltf) => {
+        if (gltf && gltf.scene) {
+          dioramaMesh = gltf.scene;
+          dioramaMesh.position.set(0, 0, 0);
+          dioramaMesh.traverse((child) => {
+            if (child.isMesh) {
+              child.castShadow = true;
+              child.receiveShadow = true;
+            }
+          });
+          group.add(dioramaMesh);
+        }
+      }, undefined, () => {});
+
+      const fallbackFloor = new THREE.Mesh(
+        new THREE.BoxGeometry(70, 1, 70),
+        new THREE.MeshStandardMaterial({ color: 0x223825, roughness: 0.9, metalness: 0.1 })
+      );
+      fallbackFloor.position.set(0, -0.5, 0);
+      fallbackFloor.receiveShadow = true;
+      group.add(fallbackFloor);
+      dioramaMesh = fallbackFloor;
+    }
+
+    const hazards = {
+      lava: {
+        active: false,
+        planeY: -50,
+        damagePerSec: 0,
+        safeEdges: [new THREE.Vector3(0, 0, 0)]
+      },
+      jumpPads: []
+    };
+
+    return {
+      type: "swamp",
+      name: "Swamp",
+      group,
+      dioramaMesh,
+      mesh: dioramaMesh,
+      platformBoxes,
+      obstacleBoxes,
+      hazards,
+      spawnPoints: [
+        new THREE.Vector3(0, 25, 12),
+        new THREE.Vector3(0, 25, -12),
+        new THREE.Vector3(-12, 25, 0),
+        new THREE.Vector3(12, 25, 0)
+      ],
+      update: () => {},
+      dispose: () => {
+        scene.remove(group);
+      }
+    };
+  }
+
+  static createVillageMap(scene, envAssets) {
+    scene.fog = new THREE.FogExp2(0x283b2a, 0.012);
+    scene.background = new THREE.Color(0x283b2a);
+    const map = MapGenerator.createOvergrownSanctum(scene, envAssets);
+    map.type = "village";
+    map.name = "Village";
+    map.spawnPoints = [
+      new THREE.Vector3(0, 25, 0),
+      new THREE.Vector3(-14, 25, 14),
+      new THREE.Vector3(14, 25, -14)
+    ];
+    return map;
   }
 
   // ==========================================
@@ -1230,17 +1373,24 @@ export class MapGenerator {
   }
 
   static generate(mapType, scene, envAssets) {
+    MapGenerator.isLoaded = false;
     const lower = (mapType || "").toLowerCase();
-    if (lower.includes("desert") || lower.includes("sands") || lower.includes("ruins")) {
-      return MapGenerator.createDesertRuins(scene, envAssets);
+    let result = null;
+    if (lower.includes("swamp")) {
+      result = MapGenerator.createSwampMap(scene, envAssets);
+    } else if (lower.includes("desert") || lower.includes("sands") || lower.includes("ruins")) {
+      result = MapGenerator.createDesertRuins(scene, envAssets);
+    } else if (lower.includes("village") || lower.includes("overgrown") || lower.includes("sanctum")) {
+      result = MapGenerator.createVillageMap(scene, envAssets);
+    } else if (lower.includes("magma")) {
+      result = MapGenerator.createMagmaCore(scene);
+    } else if (lower.includes("clockwork") || lower.includes("void")) {
+      result = MapGenerator.createClockworkVoid(scene);
+    } else {
+      result = MapGenerator.createDesertRuins(scene, envAssets);
     }
-    if (lower.includes("magma")) {
-      return MapGenerator.createMagmaCore(scene);
-    }
-    if (lower.includes("clockwork") || lower.includes("void")) {
-      return MapGenerator.createClockworkVoid(scene);
-    }
-    return MapGenerator.createOvergrownSanctum(scene, envAssets);
+    MapGenerator.isLoaded = true;
+    return result;
   }
 }
 
