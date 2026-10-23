@@ -166,7 +166,7 @@ function setButtonsDisabled(disabled) {
 
 function showAssignedRoomCode(code) {
   const display = document.getElementById("room-code-display");
-  const input = document.getElementById("room-code-input");
+  const input = document.getElementById("roomCode") || document.getElementById("room-code-input");
   if (input && code) {
     input.value = code;
   }
@@ -314,7 +314,7 @@ if (typeof window !== "undefined") {
 export function initLobby() {
   const hostButton = document.getElementById("btn-host");
   const joinButton = document.getElementById("btn-join");
-  const input = document.getElementById("room-code-input");
+  const input = document.getElementById("roomCode") || document.getElementById("room-code-input");
   const classSelect = document.getElementById("class-select");
   const teamSelect = document.getElementById("team-select");
 
@@ -377,7 +377,7 @@ export function initLobby() {
     });
   }
 
-  if (hostButton) {
+  if (hostButton && hostButton.dataset.directAction !== "true") {
     hostButton.addEventListener("click", async () => {
       try {
         await hostMatch();
@@ -385,7 +385,7 @@ export function initLobby() {
     });
   }
 
-  if (joinButton) {
+  if (joinButton && joinButton.dataset.directAction !== "true") {
     joinButton.addEventListener("click", async () => {
       const code = input ? input.value : "";
       try {
