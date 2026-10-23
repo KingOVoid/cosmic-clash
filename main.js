@@ -117,8 +117,21 @@ window.closeServerBrowser = function () {
   window.isServerBrowserOpen = false;
 };
 
-window.hostMatch = hostMatch;
-window.joinMatch = joinMatch;
+window.hostMatch = async function (mapName) {
+  const masterUi = document.getElementById('master-ui');
+  if (masterUi) {
+    masterUi.style.display = 'none';
+  }
+  return await hostMatch(mapName);
+};
+
+window.joinMatch = async function (roomCode) {
+  const masterUi = document.getElementById('master-ui');
+  if (masterUi) {
+    masterUi.style.display = 'none';
+  }
+  return await joinMatch(roomCode);
+};
 
 export async function selectClass(className) {
   const id = (className || selectedClass || "rogue").toLowerCase();

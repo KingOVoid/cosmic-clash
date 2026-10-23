@@ -301,6 +301,10 @@ export function startGame() {
 }
 
 export async function hostMatch(mapName) {
+  const masterUi = document.getElementById("master-ui");
+  if (masterUi) {
+    masterUi.style.display = "none";
+  }
   try {
     document.body.requestPointerLock();
   } catch (e) {}
@@ -318,6 +322,10 @@ export async function hostMatch(mapName) {
 }
 
 export async function joinMatch(roomCode) {
+  const masterUi = document.getElementById("master-ui");
+  if (masterUi) {
+    masterUi.style.display = "none";
+  }
   try {
     document.body.requestPointerLock();
   } catch (e) {}

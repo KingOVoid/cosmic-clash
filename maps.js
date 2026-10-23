@@ -908,6 +908,36 @@ export class MapGenerator {
     barrel2.castShadow = true;
     group.add(barrel2);
 
+    // Load local GLTF environment assets from /assets/environment/
+    const loader = new GLTFLoader();
+    loader.load("./assets/environment/Barrel.gltf", (gltf) => {
+      if (gltf && gltf.scene) {
+        const b = gltf.scene;
+        b.position.set(5.5, 0, -3.5);
+        b.scale.set(1.4, 1.4, 1.4);
+        b.traverse((n) => { if (n.isMesh) { n.castShadow = true; n.receiveShadow = true; } });
+        group.add(b);
+      }
+    }, undefined, () => {});
+    loader.load("./assets/environment/Workbench.gltf", (gltf) => {
+      if (gltf && gltf.scene) {
+        const wb = gltf.scene;
+        wb.position.set(-5.5, 0, -3.5);
+        wb.scale.set(1.2, 1.2, 1.2);
+        wb.traverse((n) => { if (n.isMesh) { n.castShadow = true; n.receiveShadow = true; } });
+        group.add(wb);
+      }
+    }, undefined, () => {});
+    loader.load("./assets/environment/Anvil.gltf", (gltf) => {
+      if (gltf && gltf.scene) {
+        const anvil = gltf.scene;
+        anvil.position.set(-3.2, 0, -3.8);
+        anvil.scale.set(1.1, 1.1, 1.1);
+        anvil.traverse((n) => { if (n.isMesh) { n.castShadow = true; n.receiveShadow = true; } });
+        group.add(anvil);
+      }
+    }, undefined, () => {});
+
     // Torch Sconces with Flickering Amber Flame
     const torchLightL = new THREE.PointLight(0xff6600, 2.8, 16);
     torchLightL.position.set(-3.2, 4.2, -6.8);
@@ -1048,6 +1078,40 @@ export class MapGenerator {
     const bannerR = new THREE.Mesh(new THREE.BoxGeometry(1.6, 5.5, 0.1), bannerMat);
     bannerR.position.set(3.2, 5.0, -8.6);
     group.add(bannerR);
+
+    // Load local GLTF environment assets from /assets/environment/
+    const loader = new GLTFLoader();
+    loader.load("./assets/environment/Banner_1.gltf", (gltf) => {
+      if (gltf && gltf.scene) {
+        const ban = gltf.scene;
+        ban.position.set(-5.5, 3.5, -8.2);
+        ban.scale.set(1.4, 1.4, 1.4);
+        ban.traverse((n) => { if (n.isMesh) { n.castShadow = true; n.receiveShadow = true; } });
+        group.add(ban);
+      }
+    }, undefined, () => {});
+    loader.load("./assets/environment/Banner_2.gltf", (gltf) => {
+      if (gltf && gltf.scene) {
+        const ban2 = gltf.scene;
+        ban2.position.set(5.5, 3.5, -8.2);
+        ban2.scale.set(1.4, 1.4, 1.4);
+        ban2.traverse((n) => { if (n.isMesh) { n.castShadow = true; n.receiveShadow = true; } });
+        group.add(ban2);
+      }
+    }, undefined, () => {});
+    loader.load("./assets/environment/Bench.gltf", (gltf) => {
+      if (gltf && gltf.scene) {
+        const bench1 = gltf.scene;
+        bench1.position.set(-3.6, 0, -2.5);
+        bench1.scale.set(1.3, 1.3, 1.3);
+        bench1.traverse((n) => { if (n.isMesh) { n.castShadow = true; n.receiveShadow = true; } });
+        group.add(bench1);
+        const bench2 = gltf.scene.clone(true);
+        bench2.position.set(3.6, 0, -2.5);
+        bench2.scale.set(1.3, 1.3, 1.3);
+        group.add(bench2);
+      }
+    }, undefined, () => {});
 
     // Warm Cathedral Sunlight & Golden Braziers
     const holySun = new THREE.DirectionalLight(0xfffaea, 2.5);
@@ -1283,6 +1347,27 @@ export class MapGenerator {
     rockInstanced.instanceMatrix.needsUpdate = true;
     group.add(rockInstanced);
 
+    // Load local GLTF environment assets from /assets/environment/
+    const loader = new GLTFLoader();
+    loader.load("./assets/environment/Bush.gltf", (gltf) => {
+      if (gltf && gltf.scene) {
+        const bush = gltf.scene;
+        bush.position.set(0, 0, -6.0);
+        bush.scale.set(1.6, 1.6, 1.6);
+        bush.traverse((n) => { if (n.isMesh) { n.castShadow = true; n.receiveShadow = true; } });
+        group.add(bush);
+      }
+    }, undefined, () => {});
+    loader.load("./assets/environment/BirchTree_1.gltf", (gltf) => {
+      if (gltf && gltf.scene) {
+        const birch = gltf.scene;
+        birch.position.set(-5.5, 0, -5.0);
+        birch.scale.set(1.3, 1.3, 1.3);
+        birch.traverse((n) => { if (n.isMesh) { n.castShadow = true; n.receiveShadow = true; } });
+        group.add(birch);
+      }
+    }, undefined, () => {});
+
     // Glowing Green Floating Particles / Fireflies
     const particleCount = 140;
     const particleGeom = new THREE.BufferGeometry();
@@ -1421,11 +1506,11 @@ export class LobbyEnvironment {
     const room = MapGenerator.createLobbyScene(scene, LobbyEnvironment.currentClass, assets);
     LobbyEnvironment.currentRoom = room;
 
-    // Cinematic fixed camera position looking at center of diorama,
-    // leaving the right side visually empty for the upcoming HTML "Start" button.
+    // Position camera at x: 0, y: 5, z: 15 and use camera.lookAt(0, 2, 0)
+    // Pulls the lens back to a safe distance so the room is visible without geometry clipping.
     if (camera) {
-      camera.position.set(-1.4, 2.3, 6.5);
-      camera.lookAt(1.4, 1.2, 0);
+      camera.position.set(0, 5, 15);
+      camera.lookAt(0, 2, 0);
       camera.updateProjectionMatrix();
     }
 
@@ -1474,8 +1559,8 @@ export class LobbyEnvironment {
     }
     const camera = LobbyEnvironment.camera || (typeof window !== "undefined" && window._threeCamera);
     if (camera && (typeof window !== "undefined" && (window.gameState === "LOBBY" || window.gameState === "TITLE_SCREEN"))) {
-      camera.position.set(-1.4, 2.3, 6.5);
-      camera.lookAt(1.4, 1.2, 0);
+      camera.position.set(0, 5, 15);
+      camera.lookAt(0, 2, 0);
     }
   }
 

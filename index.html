@@ -19,50 +19,50 @@
   <script type="module" src="./main.js"></script>
 </head>
 <body>
-  <div id="lobby" class="pointer-events-none">
-    <header class="cosmic-title-wrap">
-      <p class="cosmic-kicker">A realm between worlds</p>
-      <h1 class="cosmic-title">Cosmic Clash</h1>
-      <span class="cosmic-title-rule" aria-hidden="true"></span>
-    </header>
+  <div id="master-ui">
+    <div id="lobby" class="pointer-events-none">
+      <header class="cosmic-title-wrap">
+        <p class="cosmic-kicker">A realm between worlds</p>
+        <h1 class="cosmic-title">Cosmic Clash</h1>
+        <span class="cosmic-title-rule" aria-hidden="true"></span>
+      </header>
 
-    <section id="class-select" class="class-wheel" aria-label="Choose your class">
-      <p class="wheel-label">Choose your champion</p>
-      <div class="wheel-arc" aria-hidden="true"></div>
-      <button type="button" class="class-card class-card--rogue selected" data-class="rogue" onclick="window.selectClass('rogue')"><span>Rogue</span><small>Shadowstep</small></button>
-      <button type="button" class="class-card class-card--sorcerer" data-class="sorcerer" onclick="window.selectClass('sorcerer')"><span>Sorcerer</span><small>Arcane force</small></button>
-      <button type="button" class="class-card class-card--druid" data-class="druid" onclick="window.selectClass('druid')"><span>Druid</span><small>Wild growth</small></button>
-      <button type="button" class="class-card class-card--paladin" data-class="paladin" onclick="window.selectClass('paladin')"><span>Paladin</span><small>Oathbound</small></button>
-      <div class="wheel-center-mark" aria-hidden="true">✦</div>
-    </section>
+      <section id="class-select" class="class-wheel" aria-label="Choose your class">
+        <p class="wheel-label">Choose your champion</p>
+        <div class="wheel-arc" aria-hidden="true"></div>
+        <button type="button" class="class-card class-card--rogue selected" data-class="rogue" onclick="window.selectClass('rogue')"><span>Rogue</span><small>Shadowstep</small></button>
+        <button type="button" class="class-card class-card--sorcerer" data-class="sorcerer" onclick="window.selectClass('sorcerer')"><span>Sorcerer</span><small>Arcane force</small></button>
+        <button type="button" class="class-card class-card--druid" data-class="druid" onclick="window.selectClass('druid')"><span>Druid</span><small>Wild growth</small></button>
+        <button type="button" class="class-card class-card--paladin" data-class="paladin" onclick="window.selectClass('paladin')"><span>Paladin</span><small>Oathbound</small></button>
+        <div class="wheel-center-mark" aria-hidden="true">✦</div>
+      </section>
 
-    <button type="button" class="start-button pointer-events-auto" onclick="window.openServerBrowser(); document.getElementById('server-browser').hidden = false; document.getElementById('roomCode').focus();">
-      <span class="start-button__halo" aria-hidden="true"></span>
-      <span class="start-button__label">Start</span>
-      <span class="start-button__sub">Enter the arena</span>
-    </button>
+      <button type="button" class="start-button pointer-events-auto" onclick="window.openServerBrowser(); document.getElementById('server-browser').hidden = false; document.getElementById('roomCode').focus();">
+        <span class="start-button__halo" aria-hidden="true"></span>
+        <span class="start-button__label">Start</span>
+        <span class="start-button__sub">Enter the arena</span>
+      </button>
 
-    <div id="team-select" class="legacy-select" aria-hidden="true"><button class="team-btn selected" data-team="0" type="button">Red</button><button class="team-btn" data-team="1" type="button">Blue</button></div>
-    <div id="map-select" class="legacy-select" aria-hidden="true"><button class="map-btn selected" data-map="Desert Ruins" type="button">Desert</button></div>
-    <p id="lobby-status" class="sr-only" role="status">Ready when you are.</p>
-    <p id="room-code-display" hidden></p>
-  </div>
+      <div id="team-select" class="legacy-select" aria-hidden="true"><button class="team-btn selected" data-team="0" type="button">Red</button><button class="team-btn" data-team="1" type="button">Blue</button></div>
+      <div id="map-select" class="legacy-select" aria-hidden="true"><button class="map-btn selected" data-map="Desert Ruins" type="button">Desert</button></div>
+    </div>
 
-  <div id="server-browser" class="server-browser" hidden role="dialog" aria-modal="true" aria-labelledby="server-browser-title">
-    <div class="parchment-scroll">
-      <button type="button" class="scroll-close" aria-label="Close server browser" onclick="window.closeServerBrowser(); document.getElementById('server-browser').hidden = true;">×</button>
-      <p class="parchment-eyebrow">The Astral Gate</p>
-      <h2 id="server-browser-title">Server Browser</h2>
-      <div class="parchment-divider" aria-hidden="true">✦</div>
-      <button id="btn-host" data-direct-action="true" type="button" class="parchment-action" onclick="window.hostMatch()">Host Game</button>
-      <div class="join-section">
-        <label for="roomCode">Join Game</label>
-        <div class="join-row">
-          <input id="roomCode" name="roomCode" type="text" maxlength="4" inputmode="text" spellcheck="false" autocomplete="off" autocapitalize="characters" placeholder="ABCD" aria-label="Four character room code" />
-          <button id="btn-join" data-direct-action="true" type="button" class="parchment-action parchment-action--join" onclick="window.joinMatch(document.getElementById('roomCode').value)">Join</button>
+    <div id="server-browser" class="server-browser" hidden role="dialog" aria-modal="true" aria-labelledby="server-browser-title">
+      <div class="parchment-scroll">
+        <button type="button" class="scroll-close" aria-label="Close server browser" onclick="window.closeServerBrowser(); document.getElementById('server-browser').hidden = true;">×</button>
+        <p class="parchment-eyebrow">The Astral Gate</p>
+        <h2 id="server-browser-title">Server Browser</h2>
+        <div class="parchment-divider" aria-hidden="true">✦</div>
+        <button id="btn-host" data-direct-action="true" type="button" class="parchment-action" onclick="window.hostMatch()">Host Game</button>
+        <div class="join-section">
+          <label for="roomCode">Join Game</label>
+          <div class="join-row">
+            <input id="roomCode" name="roomCode" type="text" maxlength="4" inputmode="text" spellcheck="false" autocomplete="off" autocapitalize="characters" placeholder="ABCD" aria-label="Four character room code" />
+            <button id="btn-join" data-direct-action="true" type="button" class="parchment-action parchment-action--join" onclick="window.joinMatch(document.getElementById('roomCode').value)">Join</button>
+          </div>
         </div>
+        <p id="server-browser-hint">Speak the four-letter sigil to cross the veil.</p>
       </div>
-      <p id="server-browser-hint">Speak the four-letter sigil to cross the veil.</p>
     </div>
   </div>
 
