@@ -64,16 +64,16 @@ renderer.shadowMap.type = THREE.PCFSoftShadowMap;
 renderer.outputColorSpace = THREE.SRGBColorSpace;
 
 const scene = new THREE.Scene();
-scene.background = new THREE.Color(0x0a0c18);
-scene.fog = new THREE.Fog(0x0a0c18, 28, 72);
+scene.background = new THREE.Color(0xd2b48c);
+scene.fog = new THREE.FogExp2(0xd2b48c, 0.015);
 
 const camera = new THREE.PerspectiveCamera(55, window.innerWidth / window.innerHeight, 0.1, 180);
 camera.position.copy(CAMERA_OFFSET);
 
-const ambient = new THREE.AmbientLight(0xb9c6ff, 0.55);
+const ambient = new THREE.AmbientLight(0xffdfba, 0.65);
 scene.add(ambient);
 
-const sun = new THREE.DirectionalLight(0xfff1c9, 1.35);
+const sun = new THREE.DirectionalLight(0xfff1c9, 1.4);
 sun.position.set(18, 28, 10);
 sun.castShadow = true;
 sun.shadow.mapSize.set(1024, 1024);
@@ -87,7 +87,7 @@ sun.shadow.bias = -0.0008;
 scene.add(sun);
 scene.add(sun.target);
 
-const hemi = new THREE.HemisphereLight(0x6ea8ff, 0x1a1423, 0.35);
+const hemi = new THREE.HemisphereLight(0xffe8c2, 0xa67c52, 0.45);
 scene.add(hemi);
 
 const projectileGeom = new THREE.SphereGeometry(0.22, 8, 8);
@@ -96,19 +96,19 @@ const trapGeom = new THREE.CylinderGeometry(1, 1, 0.18, 8);
 
 VFXManager.attach(scene);
 
-let activeMapType = "overgrown";
+let activeMapType = "Desert Ruins";
 let currentMapData = null;
 
 export function loadMap(type) {
   if (currentMapData && currentMapData.dispose) {
     currentMapData.dispose();
   }
-  activeMapType = type || "overgrown";
-  currentMapData = MapGenerator.generate(activeMapType, scene, AssetManager.envModels);
+  activeMapType = type || "Desert Ruins";
+  currentMapData = MapGenerator.loadMap(scene, activeMapType, AssetManager.envModels);
   return currentMapData;
 }
 
-loadMap("overgrown");
+MapGenerator.loadMap(scene, 'Desert Ruins');
 
 const avatars = new Map();
 const keys = Object.create(null);
@@ -322,6 +322,11 @@ bindJoystick(document.getElementById("joystick-aim"), aimInput, (vector) => {
 });
 
 function clampToArena(position, yLocked) {
+  if (activeMapType === "Desert Ruins" || activeMapType === "desert") {
+    position.x = Math.max(-15.5, Math.min(15.5, position.x));
+    position.z = Math.max(-41.5, Math.min(41.5, position.z));
+    return;
+  }
   if (activeMapType === "overgrown") {
     position.x = Math.max(-28.2, Math.min(28.2, position.x));
     position.z = Math.max(-28.2, Math.min(28.2, position.z));
@@ -963,10 +968,12 @@ window.addEventListener("resize", onResize);
 
 window.addEventListener("keydown", (event) => {
   if (event.code === "Digit1") {
-    loadMap("overgrown");
+    loadMap("Desert Ruins");
   } else if (event.code === "Digit2") {
-    loadMap("magma");
+    loadMap("overgrown");
   } else if (event.code === "Digit3") {
+    loadMap("magma");
+  } else if (event.code === "Digit4") {
     loadMap("clockwork");
   }
 });
@@ -1023,7 +1030,7 @@ window.addEventListener("cosmic-clash-map-change", (event) => {
 async function boot() {
   await AssetManager.loadModels();
   assetsReady = true;
-  loadMap(activeMapType);
+  currentMapData = MapGenerator.loadMap(scene, 'Desert Ruins');
   bindJoinHandlers();
   initLobby();
   requestAnimationFrame(frame);

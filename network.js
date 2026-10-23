@@ -20,7 +20,7 @@ const DEFAULT_STATS = Object.freeze({
 
 export let selectedClass = "rogue";
 export let selectedTeam = 0;
-export let selectedMap = "overgrown";
+export let selectedMap = "Desert Ruins";
 
 const connectedPlayers = [];
 const playerColorById = new Map();

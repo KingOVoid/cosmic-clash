@@ -1,4 +1,6 @@
 import * as THREE from "three";
+import { GLTFLoader } from "three/addons/loaders/GLTFLoader.js";
+import { AssetManager } from "./assets.js";
 
 export class MapGenerator {
   static createMagmaCore(scene) {
@@ -549,11 +551,142 @@ export class MapGenerator {
     };
   }
 
+  static createDesertRuins(scene, envAssets) {
+    const group = new THREE.Group();
+    group.name = "map-desert-ruins";
+    scene.add(group);
+
+    const platformBoxes = [];
+    const obstacleBoxes = [];
+
+    // Collision: Large flat THREE.Box3 bounding box under the walkable area to act as the floor
+    const floorBox = new THREE.Box3(
+      new THREE.Vector3(-18, -2, -45),
+      new THREE.Vector3(18, 0, 45)
+    );
+    platformBoxes.push(floorBox);
+
+    // Collision: 4 static THREE.Box3 invisible walls around the perimeter of the diorama to keep players from falling out of bounds
+    const wallNorth = new THREE.Box3(
+      new THREE.Vector3(-25, -2, 41.5),
+      new THREE.Vector3(25, 25, 46.5)
+    );
+    const wallSouth = new THREE.Box3(
+      new THREE.Vector3(-25, -2, -46.5),
+      new THREE.Vector3(25, 25, -41.5)
+    );
+    const wallEast = new THREE.Box3(
+      new THREE.Vector3(15.5, -2, -46),
+      new THREE.Vector3(20.5, 25, 46)
+    );
+    const wallWest = new THREE.Box3(
+      new THREE.Vector3(-20.5, -2, -46),
+      new THREE.Vector3(-15.5, 25, 46)
+    );
+
+    obstacleBoxes.push(wallNorth, wallSouth, wallEast, wallWest);
+
+    // Additional interior ruin pillar obstacles
+    const ruinPillars = [
+      [-6, 0, 15], [6, 0, 15],
+      [-7, 0, 0], [7, 0, 0],
+      [-6, 0, -15], [6, 0, -15],
+      [0, 0, 28], [0, 0, -28]
+    ];
+    for (let i = 0; i < ruinPillars.length; i += 1) {
+      const rp = ruinPillars[i];
+      obstacleBoxes.push(new THREE.Box3(
+        new THREE.Vector3(rp[0] - 1.2, 0, rp[2] - 1.2),
+        new THREE.Vector3(rp[0] + 1.2, 6.0, rp[2] + 1.2)
+      ));
+    }
+
+    // Load sands.gltf model and position it at the center of the scene (0, 0, 0)
+    let dioramaMesh = null;
+    const sandsData = envAssets && (envAssets.sands || (envAssets.getEnvModel && envAssets.getEnvModel("sands")) || (AssetManager && AssetManager.sandsScene && { scene: AssetManager.sandsScene }));
+
+    if (sandsData && sandsData.scene) {
+      dioramaMesh = sandsData.scene.clone(true);
+      dioramaMesh.position.set(0, 0, 0);
+      dioramaMesh.traverse((child) => {
+        if (child.isMesh) {
+          child.castShadow = true;
+          child.receiveShadow = true;
+        }
+      });
+      group.add(dioramaMesh);
+    } else {
+      const loader = new GLTFLoader();
+      const urls = ["./assets/environment/sands.gltf", "./assets/environment/sands map.gltf"];
+      const loadAttempt = (idx) => {
+        if (idx >= urls.length) return;
+        loader.load(urls[idx], (gltf) => {
+          if (gltf && gltf.scene) {
+            dioramaMesh = gltf.scene;
+            dioramaMesh.position.set(0, 0, 0);
+            dioramaMesh.traverse((child) => {
+              if (child.isMesh) {
+                child.castShadow = true;
+                child.receiveShadow = true;
+              }
+            });
+            group.add(dioramaMesh);
+          }
+        }, undefined, () => loadAttempt(idx + 1));
+      };
+      loadAttempt(0);
+
+      // Visual fallback while async load resolves
+      const fallbackFloor = new THREE.Mesh(
+        new THREE.BoxGeometry(32, 1, 84),
+        new THREE.MeshStandardMaterial({ color: 0xd2b48c, roughness: 0.95, metalness: 0.05 })
+      );
+      fallbackFloor.position.set(0, -0.5, 0);
+      fallbackFloor.receiveShadow = true;
+      group.add(fallbackFloor);
+      dioramaMesh = fallbackFloor;
+    }
+
+    const hazards = {
+      lava: {
+        active: false,
+        planeY: -50,
+        damagePerSec: 0,
+        safeEdges: [new THREE.Vector3(0, 0, 0)]
+      },
+      jumpPads: []
+    };
+
+    return {
+      type: "desert",
+      name: "Desert Ruins",
+      group,
+      dioramaMesh,
+      mesh: dioramaMesh,
+      platformBoxes,
+      obstacleBoxes,
+      hazards,
+      spawnPoints: [new THREE.Vector3(0, 0, 10), new THREE.Vector3(0, 0, -10)],
+      update: () => {},
+      dispose: () => {
+        scene.remove(group);
+      }
+    };
+  }
+
+  static loadMap(scene, mapName = "Desert Ruins", envAssets = null) {
+    return MapGenerator.generate(mapName, scene, envAssets);
+  }
+
   static generate(mapType, scene, envAssets) {
-    if (mapType === "magma" || mapType === "Magma Core") {
+    const lower = (mapType || "").toLowerCase();
+    if (lower.includes("desert") || lower.includes("sands") || lower.includes("ruins")) {
+      return MapGenerator.createDesertRuins(scene, envAssets);
+    }
+    if (lower.includes("magma")) {
       return MapGenerator.createMagmaCore(scene);
     }
-    if (mapType === "clockwork" || mapType === "Clockwork Void") {
+    if (lower.includes("clockwork") || lower.includes("void")) {
       return MapGenerator.createClockworkVoid(scene);
     }
     return MapGenerator.createOvergrownSanctum(scene, envAssets);

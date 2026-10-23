@@ -167,6 +167,18 @@ function createFallbackRock() {
   return { geometry: ico, material: mat };
 }
 
+function createFallbackSands() {
+  const geom = new THREE.BoxGeometry(60, 2, 60);
+  const mat = new THREE.MeshStandardMaterial({
+    color: 0xd2b48c,
+    roughness: 0.92,
+    metalness: 0.05,
+    flatShading: true
+  });
+  const mesh = new THREE.Mesh(geom, mat);
+  return { geometry: geom, material: mat, scene: mesh };
+}
+
 class AssetManagerImpl {
   constructor() {
     this.loader = new GLTFLoader();
@@ -177,9 +189,13 @@ class AssetManagerImpl {
     this.treeMaterial = null;
     this.rockGeometry = null;
     this.rockMaterial = null;
+    this.sandsGeometry = null;
+    this.sandsMaterial = null;
+    this.sandsScene = null;
     this.envModels = {
       tree: null,
-      rock: null
+      rock: null,
+      sands: null
     };
   }
 
@@ -224,7 +240,8 @@ class AssetManagerImpl {
           if (foundMesh && foundMesh.geometry && foundMesh.material) {
             const entry = {
               geometry: foundMesh.geometry,
-              material: foundMesh.material
+              material: foundMesh.material,
+              scene: gltf.scene
             };
             this.envModels[key] = entry;
             if (key === "tree") {
@@ -233,6 +250,10 @@ class AssetManagerImpl {
             } else if (key === "rock") {
               this.rockGeometry = entry.geometry;
               this.rockMaterial = entry.material;
+            } else if (key === "sands") {
+              this.sandsGeometry = entry.geometry;
+              this.sandsMaterial = entry.material;
+              this.sandsScene = gltf.scene;
             }
             return entry;
           }
@@ -249,6 +270,10 @@ class AssetManagerImpl {
     } else if (key === "rock") {
       this.rockGeometry = fallback.geometry;
       this.rockMaterial = fallback.material;
+    } else if (key === "sands") {
+      this.sandsGeometry = fallback.geometry;
+      this.sandsMaterial = fallback.material;
+      this.sandsScene = fallback.scene;
     }
     return fallback;
   }
@@ -272,6 +297,11 @@ class AssetManagerImpl {
       "rock",
       ["./assets/environment/Rocks.gltf", "./assets/environment/Bush.gltf"],
       createFallbackRock
+    ));
+    jobs.push(this.loadEnvModel(
+      "sands",
+      ["./assets/environment/sands map.gltf", "./assets/environment/sands.gltf"],
+      createFallbackSands
     ));
     await Promise.all(jobs);
     this.ready = true;
