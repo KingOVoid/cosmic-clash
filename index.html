@@ -18,8 +18,10 @@
   <script type="module" src="./network.js"></script>
   <script type="module" src="./main.js"></script>
 </head>
-<body>
-  <div id="master-ui">
+<body class="bg-transparent m-0 p-0 overflow-hidden">
+  <canvas id="game-canvas" style="position: absolute; top: 0; left: 0; z-index: 1; width: 100vw; height: 100vh; display: block;"></canvas>
+
+  <div id="master-ui" class="bg-transparent" style="position: absolute; top: 0; left: 0; z-index: 10; pointer-events: none; width: 100vw; height: 100vh;">
     <div id="lobby" class="pointer-events-none">
       <header class="cosmic-title-wrap">
         <p class="cosmic-kicker">A realm between worlds</p>
@@ -30,10 +32,10 @@
       <section id="class-select" class="class-wheel" aria-label="Choose your class">
         <p class="wheel-label">Choose your champion</p>
         <div class="wheel-arc" aria-hidden="true"></div>
-        <button type="button" class="class-card class-card--rogue selected" data-class="rogue" onclick="window.selectClass('rogue')"><span>Rogue</span><small>Shadowstep</small></button>
-        <button type="button" class="class-card class-card--sorcerer" data-class="sorcerer" onclick="window.selectClass('sorcerer')"><span>Sorcerer</span><small>Arcane force</small></button>
-        <button type="button" class="class-card class-card--druid" data-class="druid" onclick="window.selectClass('druid')"><span>Druid</span><small>Wild growth</small></button>
-        <button type="button" class="class-card class-card--paladin" data-class="paladin" onclick="window.selectClass('paladin')"><span>Paladin</span><small>Oathbound</small></button>
+        <button type="button" class="class-card class-card--rogue selected pointer-events-auto" data-class="rogue" onclick="window.selectClass('rogue')"><span>Rogue</span><small>Shadowstep</small></button>
+        <button type="button" class="class-card class-card--sorcerer pointer-events-auto" data-class="sorcerer" onclick="window.selectClass('sorcerer')"><span>Sorcerer</span><small>Arcane force</small></button>
+        <button type="button" class="class-card class-card--druid pointer-events-auto" data-class="druid" onclick="window.selectClass('druid')"><span>Druid</span><small>Wild growth</small></button>
+        <button type="button" class="class-card class-card--paladin pointer-events-auto" data-class="paladin" onclick="window.selectClass('paladin')"><span>Paladin</span><small>Oathbound</small></button>
         <div class="wheel-center-mark" aria-hidden="true">✦</div>
       </section>
 
@@ -49,16 +51,16 @@
 
     <div id="server-browser" class="server-browser" hidden role="dialog" aria-modal="true" aria-labelledby="server-browser-title">
       <div class="parchment-scroll">
-        <button type="button" class="scroll-close" aria-label="Close server browser" onclick="window.closeServerBrowser(); document.getElementById('server-browser').hidden = true;">×</button>
+        <button type="button" class="scroll-close pointer-events-auto" aria-label="Close server browser" onclick="window.closeServerBrowser(); document.getElementById('server-browser').hidden = true;">×</button>
         <p class="parchment-eyebrow">The Astral Gate</p>
         <h2 id="server-browser-title">Server Browser</h2>
         <div class="parchment-divider" aria-hidden="true">✦</div>
-        <button id="btn-host" data-direct-action="true" type="button" class="parchment-action" onclick="window.hostMatch()">Host Game</button>
+        <button id="btn-host" data-direct-action="true" type="button" class="parchment-action pointer-events-auto" onclick="window.hostMatch()">Host Game</button>
         <div class="join-section">
           <label for="roomCode">Join Game</label>
           <div class="join-row">
-            <input id="roomCode" name="roomCode" type="text" maxlength="4" inputmode="text" spellcheck="false" autocomplete="off" autocapitalize="characters" placeholder="ABCD" aria-label="Four character room code" />
-            <button id="btn-join" data-direct-action="true" type="button" class="parchment-action parchment-action--join" onclick="window.joinMatch(document.getElementById('roomCode').value)">Join</button>
+            <input id="roomCode" name="roomCode" type="text" maxlength="4" inputmode="text" spellcheck="false" autocomplete="off" autocapitalize="characters" placeholder="ABCD" aria-label="Four character room code" class="pointer-events-auto" />
+            <button id="btn-join" data-direct-action="true" type="button" class="parchment-action parchment-action--join pointer-events-auto" onclick="window.joinMatch(document.getElementById('roomCode').value)">Join</button>
           </div>
         </div>
         <p id="server-browser-hint">Speak the four-letter sigil to cross the veil.</p>
@@ -66,9 +68,7 @@
     </div>
   </div>
 
-  <canvas id="game-canvas"></canvas>
-  <div id="hud" hidden><div class="hud-chip" id="hud-room"></div><div class="hud-chip" id="hud-players"></div><div class="hud-chip" id="hud-class"></div><div class="hp-wrap"><div id="hp-fill"></div><span id="hp-text">100</span></div><div class="hud-chip" id="hud-state"></div></div>
+  <div id="hud" hidden><div class="hud-chip" id="hud-class"></div><div class="hp-wrap"><div id="hp-fill"></div><span id="hp-text">100</span></div><div class="hud-chip" id="hud-state"></div></div>
   <div id="mobile-controls" hidden><div id="joystick-move" class="joystick" aria-hidden="true"><div class="joystick-base"></div><div class="joystick-knob"></div></div><div id="skill-cluster"><button type="button" id="btn-primary" class="skill-btn">ATK</button><button type="button" id="btn-skill1" class="skill-btn">Q</button><button type="button" id="btn-skill2" class="skill-btn">E</button></div><div id="joystick-aim" class="joystick" aria-hidden="true"><div class="joystick-base"></div><div class="joystick-knob"></div></div></div>
-  <div id="win-loss-overlay" class="overlay-hidden" aria-hidden="true"><div class="banner-stage"><div class="banner-rigging"><div class="banner-finial finial-left"></div><div class="banner-pole"></div><div class="banner-finial finial-right"></div><div class="banner-cord cord-left"></div><div class="banner-cord cord-right"></div></div><div class="hanging-banner" id="outcome-banner"><div class="banner-cloth-pattern"></div><div class="banner-heraldry"><div class="banner-crest-icon"></div></div><div class="banner-content"><h2 id="banner-title">YOU WIN</h2><p id="banner-subtitle">Glory to the Realm</p><button id="btn-banner-action" type="button">Battle Again</button></div><div class="tattered-burn-marks"></div><div class="fire-particles" id="fire-particles"><span class="fire-tongue ft-1"></span><span class="fire-tongue ft-2"></span><span class="fire-tongue ft-3"></span><span class="fire-tongue ft-4"></span><span class="fire-tongue ft-5"></span><span class="fire-tongue ft-6"></span><span class="fire-ember fe-1"></span><span class="fire-ember fe-2"></span><span class="fire-ember fe-3"></span><span class="fire-ember fe-4"></span><span class="fire-ember fe-5"></span><span class="fire-ember fe-6"></span></div></div></div></div>
 </body>
 </html>

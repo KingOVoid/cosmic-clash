@@ -74,10 +74,10 @@ scene.fog = new THREE.FogExp2(0xd2b48c, 0.015);
 const camera = new THREE.PerspectiveCamera(55, window.innerWidth / window.innerHeight, 0.1, 180);
 camera.position.copy(CAMERA_OFFSET);
 
-const ambient = new THREE.AmbientLight(0xffdfba, 0.65);
+const ambient = new THREE.AmbientLight(0xffffff, 1.0);
 scene.add(ambient);
 
-const sun = new THREE.DirectionalLight(0xfff1c9, 1.4);
+const sun = new THREE.DirectionalLight(0xffffff, 1.5);
 sun.position.set(18, 28, 10);
 sun.castShadow = true;
 sun.shadow.mapSize.set(1024, 1024);
@@ -91,8 +91,37 @@ sun.shadow.bias = -0.0008;
 scene.add(sun);
 scene.add(sun.target);
 
-const hemi = new THREE.HemisphereLight(0xffe8c2, 0xa67c52, 0.45);
+const hemi = new THREE.HemisphereLight(0xffffff, 0x555555, 0.6);
 scene.add(hemi);
+
+export function verifySceneLighting(targetScene = scene) {
+  if (!targetScene) return;
+  let hasAmbient = false;
+  let hasDirectional = false;
+  targetScene.traverse((obj) => {
+    if (obj.isAmbientLight) {
+      hasAmbient = true;
+      obj.color.setHex(0xffffff);
+      obj.intensity = Math.max(obj.intensity, 1.0);
+    }
+    if (obj.isDirectionalLight) {
+      hasDirectional = true;
+      obj.color.setHex(0xffffff);
+      obj.intensity = Math.max(obj.intensity, 1.2);
+    }
+  });
+  if (!hasAmbient) {
+    const amb = new THREE.AmbientLight(0xffffff, 1.0);
+    targetScene.add(amb);
+  }
+  if (!hasDirectional) {
+    const dir = new THREE.DirectionalLight(0xffffff, 1.5);
+    dir.position.set(18, 28, 10);
+    dir.castShadow = true;
+    targetScene.add(dir);
+  }
+}
+verifySceneLighting(scene);
 
 const projectileGeom = new THREE.SphereGeometry(0.22, 8, 8);
 const zoneGeom = new THREE.CylinderGeometry(1, 1, 0.12, 24);
@@ -140,6 +169,7 @@ export async function selectClass(className) {
 
   // 3. Call LobbyEnvironment.loadRoom(className) to switch 3D scene to corresponding diorama
   LobbyEnvironment.loadRoom(id, AssetManager.envModels);
+  verifySceneLighting(scene);
 
   // 2. Trigger AssetManager to quietly load the selected character's .glb model in background
   try {
@@ -150,6 +180,7 @@ export async function selectClass(className) {
 
   // When selectClass resolves, place 3D character mesh directly in center of active diorama
   LobbyEnvironment.setCharacter(id);
+  verifySceneLighting(scene);
   return id;
 }
 window.selectClass = selectClass;
@@ -170,6 +201,7 @@ export function loadMap(type) {
   }
   activeMapType = target || selectedMap || "Desert";
   currentMapData = MapGenerator.loadMap(scene, activeMapType, AssetManager.envModels);
+  verifySceneLighting(scene);
   return currentMapData;
 }
 
@@ -1278,14 +1310,17 @@ async function boot() {
   initPointerLockControls();
   window._threeScene = scene;
   window._threeCamera = camera;
+  verifySceneLighting(scene);
   LobbyEnvironment.init(scene, camera);
 
   // Ensure the floor THREE.Box3 is generated before physics loop starts applying gravity
   currentMapData = MapGenerator.loadMap(scene, 'Desert');
+  verifySceneLighting(scene);
 
   // Initial title screen state & diorama
   window.gameState = "TITLE_SCREEN";
   LobbyEnvironment.loadRoom(selectedClass || "rogue", AssetManager.envModels);
+  verifySceneLighting(scene);
 
   bindJoinHandlers();
   initLobby();
@@ -1297,6 +1332,7 @@ async function boot() {
   // Place initial character model in center of diorama once assets ready
   if (window.gameState !== "IN_GAME") {
     LobbyEnvironment.setCharacter(selectedClass || "rogue");
+    verifySceneLighting(scene);
   }
 }
 

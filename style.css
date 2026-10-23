@@ -1,12 +1,50 @@
 
 
+/* Canvas and Master UI Layering */
+html, body {
+  margin: 0;
+  padding: 0;
+  width: 100vw;
+  height: 100vh;
+  overflow: hidden;
+  background: transparent !important;
+  background-color: transparent !important;
+}
+
+#game-canvas {
+  position: absolute;
+  top: 0;
+  left: 0;
+  z-index: 1;
+  width: 100vw;
+  height: 100vh;
+  display: block;
+}
+
+#master-ui {
+  position: absolute;
+  top: 0;
+  left: 0;
+  z-index: 10;
+  pointer-events: none;
+  width: 100vw;
+  height: 100vh;
+  background: transparent !important;
+  background-color: transparent !important;
+}
+
 /* Cosmic Clash title screen overlay */
 #lobby {
   display: block;
-  background: linear-gradient(115deg, rgba(4, 8, 22, .18), rgba(4, 8, 22, .55));
+  width: 100%;
+  height: 100%;
+  background: transparent !important;
   pointer-events: none;
 }
 #lobby > * { pointer-events: auto; }
+.class-card, .start-button, .parchment-action, .scroll-close, .skill-btn, #roomCode {
+  pointer-events: auto !important;
+}
 .cosmic-title-wrap { position: fixed; top: clamp(28px, 7vh, 72px); left: 50%; transform: translateX(-50%); text-align: center; color: #f4e7c5; }
 .cosmic-kicker { margin: 0 0 8px; color: #cbbd9d; font: 600 10px/1 "Cinzel", serif; letter-spacing: .42em; text-transform: uppercase; opacity: .82; }
 .cosmic-title { margin: 0; color: #f8edcf; font: 700 clamp(36px, 5vw, 70px)/1 "Cinzel Decorative", Georgia, serif; letter-spacing: .06em; white-space: nowrap; text-shadow: 0 2px 0 #3b2516, 0 0 24px rgba(241, 197, 104, .35); }

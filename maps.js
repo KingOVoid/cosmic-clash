@@ -1453,12 +1453,39 @@ export class MapGenerator {
     return MapGenerator.createRogueLobby(scene);
   }
 
+  static ensureLighting(scene) {
+    if (!scene) return;
+    let hasAmbient = false;
+    let hasDirectional = false;
+    scene.traverse((obj) => {
+      if (obj.isAmbientLight) {
+        hasAmbient = true;
+        obj.color.setHex(0xffffff);
+        obj.intensity = Math.max(obj.intensity, 1.0);
+      }
+      if (obj.isDirectionalLight) {
+        hasDirectional = true;
+        obj.color.setHex(0xffffff);
+        obj.intensity = Math.max(obj.intensity, 1.2);
+      }
+    });
+    if (!hasAmbient) {
+      scene.add(new THREE.AmbientLight(0xffffff, 1.0));
+    }
+    if (!hasDirectional) {
+      const dirLight = new THREE.DirectionalLight(0xffffff, 1.5);
+      dirLight.position.set(18, 28, 10);
+      scene.add(dirLight);
+    }
+  }
+
   static loadMap(scene, mapName = "Desert Ruins", envAssets = null) {
     return MapGenerator.generate(mapName, scene, envAssets);
   }
 
   static generate(mapType, scene, envAssets) {
     MapGenerator.isLoaded = false;
+    MapGenerator.ensureLighting(scene);
     const lower = (mapType || "").toLowerCase();
     let result = null;
     if (lower.includes("swamp")) {
@@ -1474,6 +1501,7 @@ export class MapGenerator {
     } else {
       result = MapGenerator.createDesertRuins(scene, envAssets);
     }
+    MapGenerator.ensureLighting(scene);
     MapGenerator.isLoaded = true;
     return result;
   }
@@ -1505,6 +1533,7 @@ export class LobbyEnvironment {
     const assets = envAssets || AssetManager.envModels;
     const room = MapGenerator.createLobbyScene(scene, LobbyEnvironment.currentClass, assets);
     LobbyEnvironment.currentRoom = room;
+    MapGenerator.ensureLighting(scene);
 
     // Position camera at x: 0, y: 5, z: 15 and use camera.lookAt(0, 2, 0)
     // Pulls the lens back to a safe distance so the room is visible without geometry clipping.
