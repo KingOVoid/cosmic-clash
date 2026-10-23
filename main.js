@@ -72,7 +72,8 @@ scene.background = new THREE.Color(0xd2b48c);
 scene.fog = new THREE.FogExp2(0xd2b48c, 0.002);
 
 const camera = new THREE.PerspectiveCamera(55, window.innerWidth / window.innerHeight, 0.1, 180);
-camera.position.copy(CAMERA_OFFSET);
+camera.position.set(0, 15, 50);
+camera.lookAt(0, 0, 0);
 
 const ambient = new THREE.AmbientLight(0xffffff, 1.0);
 scene.add(ambient);
@@ -151,7 +152,12 @@ window.hostMatch = async function (mapName) {
   if (masterUi) {
     masterUi.style.display = 'none';
   }
-  return await hostMatch(mapName);
+  const mapSelectEl = document.getElementById('mapSelect');
+  const selectedMap = mapSelectEl ? mapSelectEl.value : (mapName || 'Desert Ruins');
+  if (window.Playroom && typeof window.Playroom.setState === 'function') {
+    window.Playroom.setState('selectedMap', selectedMap, true);
+  }
+  return await hostMatch(selectedMap);
 };
 
 window.joinMatch = async function (roomCode) {

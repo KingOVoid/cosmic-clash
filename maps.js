@@ -1553,6 +1553,14 @@ export class MapGenerator {
   }
 
   static loadMap(scene, mapName = "Desert Ruins", envAssets = null) {
+    const debugCube = new THREE.Mesh(new THREE.BoxGeometry(20, 20, 20), new THREE.MeshBasicMaterial({ color: 0x00ff00, wireframe: true }));
+    scene.add(debugCube);
+    const camera = (typeof window !== "undefined" && window._threeCamera) || LobbyEnvironment.camera;
+    if (camera) {
+      camera.position.set(0, 15, 50);
+      camera.lookAt(0, 0, 0);
+      camera.updateProjectionMatrix();
+    }
     return MapGenerator.generate(mapName, scene, envAssets);
   }
 
@@ -1632,6 +1640,15 @@ export class LobbyEnvironment {
     const scene = LobbyEnvironment.scene || (typeof window !== "undefined" && window._threeScene);
     const camera = LobbyEnvironment.camera || (typeof window !== "undefined" && window._threeCamera);
 
+    const debugCube = new THREE.Mesh(new THREE.BoxGeometry(20, 20, 20), new THREE.MeshBasicMaterial({ color: 0x00ff00, wireframe: true }));
+    scene.add(debugCube);
+
+    if (camera) {
+      camera.position.set(0, 15, 50);
+      camera.lookAt(0, 0, 0);
+      camera.updateProjectionMatrix();
+    }
+
     if (LobbyEnvironment.currentRoom && LobbyEnvironment.currentRoom.dispose) {
       LobbyEnvironment.currentRoom.dispose();
       LobbyEnvironment.currentRoom = null;
@@ -1656,8 +1673,8 @@ export class LobbyEnvironment {
       LobbyEnvironment.currentRoom = room;
       MapGenerator.ensureLighting(scene);
       if (camera) {
-        camera.position.set(0, 5, 15);
-        camera.lookAt(0, 2, 0);
+        camera.position.set(0, 15, 50);
+        camera.lookAt(0, 0, 0);
         camera.updateProjectionMatrix();
       }
       return room;
@@ -1668,11 +1685,9 @@ export class LobbyEnvironment {
     LobbyEnvironment.currentRoom = room;
     MapGenerator.ensureLighting(scene);
 
-    // Position camera at x: 0, y: 5, z: 15 and use camera.lookAt(0, 2, 0)
-    // Pulls the lens back to a safe distance so the room is visible without geometry clipping.
     if (camera) {
-      camera.position.set(0, 5, 15);
-      camera.lookAt(0, 2, 0);
+      camera.position.set(0, 15, 50);
+      camera.lookAt(0, 0, 0);
       camera.updateProjectionMatrix();
     }
 
@@ -1721,8 +1736,8 @@ export class LobbyEnvironment {
     }
     const camera = LobbyEnvironment.camera || (typeof window !== "undefined" && window._threeCamera);
     if (camera && (typeof window !== "undefined" && (window.gameState === "LOBBY" || window.gameState === "TITLE_SCREEN"))) {
-      camera.position.set(0, 5, 15);
-      camera.lookAt(0, 2, 0);
+      camera.position.set(0, 15, 50);
+      camera.lookAt(0, 0, 0);
     }
   }
 
