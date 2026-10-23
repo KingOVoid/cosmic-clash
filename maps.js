@@ -673,8 +673,16 @@ export class MapGenerator {
             });
             group.add(dioramaMesh);
           }
+          MapGenerator.isLoaded = true;
+          if (typeof window !== "undefined") {
+            window.isMapLoaded = true;
+          }
         }, undefined, function(error) {
           console.error("GLTF Load Error:", error);
+          MapGenerator.isLoaded = true;
+          if (typeof window !== "undefined") {
+            window.isMapLoaded = true;
+          }
           loadAttempt(idx + 1);
         });
       };
@@ -814,8 +822,16 @@ export class MapGenerator {
           });
           group.add(dioramaMesh);
         }
+        MapGenerator.isLoaded = true;
+        if (typeof window !== "undefined") {
+          window.isMapLoaded = true;
+        }
       }, undefined, function(error) {
         console.error("GLTF Load Error:", error);
+        MapGenerator.isLoaded = true;
+        if (typeof window !== "undefined") {
+          window.isMapLoaded = true;
+        }
       });
 
       const fallbackFloor = new THREE.Mesh(
@@ -1561,7 +1577,12 @@ export class MapGenerator {
       camera.lookAt(0, 0, 0);
       camera.updateProjectionMatrix();
     }
-    return MapGenerator.generate(mapName, scene, envAssets);
+    const result = MapGenerator.generate(mapName, scene, envAssets);
+    MapGenerator.isLoaded = true;
+    if (typeof window !== "undefined") {
+      window.isMapLoaded = true;
+    }
+    return result;
   }
 
   static generate(mapType, scene, envAssets) {
@@ -1640,8 +1661,18 @@ export class LobbyEnvironment {
     const scene = LobbyEnvironment.scene || (typeof window !== "undefined" && window._threeScene);
     const camera = LobbyEnvironment.camera || (typeof window !== "undefined" && window._threeCamera);
 
-    const debugCube = new THREE.Mesh(new THREE.BoxGeometry(20, 20, 20), new THREE.MeshBasicMaterial({ color: 0x00ff00, wireframe: true }));
-    scene.add(debugCube);
+    if (LobbyEnvironment.currentRoom && LobbyEnvironment.currentRoom.dispose) {
+      try {
+        LobbyEnvironment.currentRoom.dispose();
+      } catch (e) {}
+      LobbyEnvironment.currentRoom = null;
+    }
+    LobbyEnvironment.characterRig = null;
+
+    if (scene) {
+      scene.children = scene.children.filter(c => c.type === 'AmbientLight' || c.type === 'DirectionalLight' || c === camera);
+      MapGenerator.ensureLighting(scene);
+    }
 
     if (camera) {
       camera.position.set(0, 15, 50);
@@ -1649,41 +1680,180 @@ export class LobbyEnvironment {
       camera.updateProjectionMatrix();
     }
 
-    if (LobbyEnvironment.currentRoom && LobbyEnvironment.currentRoom.dispose) {
-      LobbyEnvironment.currentRoom.dispose();
-      LobbyEnvironment.currentRoom = null;
-    }
-    LobbyEnvironment.characterRig = null;
-    LobbyEnvironment.currentClass = (className || "rogue").toLowerCase();
+    const norm = (className || "rogue").toLowerCase();
+    LobbyEnvironment.currentClass = norm;
 
-    if (className && (className.includes("desert") || className.includes("swamp") || className.endsWith(".gltf") || className.endsWith(".glb"))) {
-      const url = className.includes("swamp")
-        ? "./assets/environment/swamp/scene.gltf"
-        : (className.includes("desert") ? "./assets/environment/desert/scene.gltf" : className);
-      const dioramaGroup = new THREE.Group();
-      dioramaGroup.name = "lobby-diorama";
-      scene.add(dioramaGroup);
-      LobbyEnvironment.loadDiorama(url, (dioramaScene) => {
-        dioramaGroup.add(dioramaScene);
-      });
-      const room = {
-        group: dioramaGroup,
-        dispose: () => { scene.remove(dioramaGroup); }
-      };
-      LobbyEnvironment.currentRoom = room;
-      MapGenerator.ensureLighting(scene);
-      if (camera) {
-        camera.position.set(0, 15, 50);
-        camera.lookAt(0, 0, 0);
-        camera.updateProjectionMatrix();
+    const roomGroup = new THREE.Group();
+    roomGroup.name = `lobby-room-${norm}`;
+    if (scene) {
+      scene.add(roomGroup);
+    }
+
+    switch (norm) {
+      case "rogue": {
+        if (scene) scene.background = new THREE.Color(0x111318);
+        const wallMat = new THREE.MeshStandardMaterial({ color: 0x40444c, roughness: 0.85, metalness: 0.15 });
+        const floorMat = new THREE.MeshStandardMaterial({ color: 0x22242a, roughness: 0.9, metalness: 0.1 });
+        const floor = new THREE.Mesh(new THREE.BoxGeometry(60, 1, 60), floorMat);
+        floor.position.set(0, -0.5, 0);
+        floor.receiveShadow = true;
+        roomGroup.add(floor);
+
+        // Dark grey THREE.BoxGeometry stone walls
+        const backWall = new THREE.Mesh(new THREE.BoxGeometry(50, 20, 3), wallMat);
+        backWall.position.set(0, 10, -20);
+        backWall.castShadow = true;
+        backWall.receiveShadow = true;
+        roomGroup.add(backWall);
+
+        const leftWall = new THREE.Mesh(new THREE.BoxGeometry(3, 20, 40), wallMat);
+        leftWall.position.set(-20, 10, 0);
+        leftWall.castShadow = true;
+        leftWall.receiveShadow = true;
+        roomGroup.add(leftWall);
+
+        const rightWall = new THREE.Mesh(new THREE.BoxGeometry(3, 20, 40), wallMat);
+        rightWall.position.set(20, 10, 0);
+        rightWall.castShadow = true;
+        rightWall.receiveShadow = true;
+        roomGroup.add(rightWall);
+
+        const pillarL = new THREE.Mesh(new THREE.BoxGeometry(4, 20, 4), wallMat);
+        pillarL.position.set(-8, 10, -10);
+        pillarL.castShadow = true;
+        roomGroup.add(pillarL);
+
+        const pillarR = new THREE.Mesh(new THREE.BoxGeometry(4, 20, 4), wallMat);
+        pillarR.position.set(8, 10, -10);
+        pillarR.castShadow = true;
+        roomGroup.add(pillarR);
+        break;
       }
-      return room;
+
+      case "paladin": {
+        if (scene) scene.background = new THREE.Color(0x2a2520);
+        const marbleMat = new THREE.MeshStandardMaterial({ color: 0xffffff, roughness: 0.25, metalness: 0.1 });
+        const floorMat = new THREE.MeshStandardMaterial({ color: 0xd4af37, roughness: 0.45, metalness: 0.3 });
+        const floor = new THREE.Mesh(new THREE.BoxGeometry(60, 1, 60), floorMat);
+        floor.position.set(0, -0.5, 0);
+        floor.receiveShadow = true;
+        roomGroup.add(floor);
+
+        // White THREE.CylinderGeometry marble pillars
+        const pillarGeo = new THREE.CylinderGeometry(2.0, 2.4, 22, 24);
+        const pillarPositions = [
+          [-15, 11, -15], [15, 11, -15],
+          [-15, 11, 0], [15, 11, 0],
+          [-15, 11, 15], [15, 11, 15]
+        ];
+        pillarPositions.forEach(([x, y, z]) => {
+          const pillar = new THREE.Mesh(pillarGeo, marbleMat);
+          pillar.position.set(x, y, z);
+          pillar.castShadow = true;
+          pillar.receiveShadow = true;
+          roomGroup.add(pillar);
+        });
+        break;
+      }
+
+      case "sorcerer": {
+        if (scene) scene.background = new THREE.Color(0x150d24);
+        const runeMat = new THREE.MeshStandardMaterial({
+          color: 0xbf55ec,
+          emissive: 0x9b59b6,
+          emissiveIntensity: 1.8,
+          roughness: 0.2,
+          metalness: 0.4
+        });
+        const floorMat = new THREE.MeshStandardMaterial({ color: 0x1f1430, roughness: 0.7, metalness: 0.2 });
+        const floor = new THREE.Mesh(new THREE.BoxGeometry(60, 1, 60), floorMat);
+        floor.position.set(0, -0.5, 0);
+        floor.receiveShadow = true;
+        roomGroup.add(floor);
+
+        // Glowing purple THREE.TorusGeometry floating runes
+        const runeSpecs = [
+          { pos: [0, 12, -10], rot: [Math.PI / 4, 0, 0], r: 4.0, tube: 0.6 },
+          { pos: [-14, 10, -5], rot: [0.3, 0.5, 0], r: 2.5, tube: 0.4 },
+          { pos: [14, 10, -5], rot: [-0.3, -0.5, 0], r: 2.5, tube: 0.4 },
+          { pos: [-8, 6, 8], rot: [Math.PI / 2, 0, 0.4], r: 2.0, tube: 0.35 },
+          { pos: [8, 6, 8], rot: [Math.PI / 2, 0, -0.4], r: 2.0, tube: 0.35 }
+        ];
+        runeSpecs.forEach(spec => {
+          const torus = new THREE.Mesh(
+            new THREE.TorusGeometry(spec.r, spec.tube, 16, 32),
+            runeMat
+          );
+          torus.position.set(...spec.pos);
+          torus.rotation.set(...spec.rot);
+          torus.castShadow = true;
+          roomGroup.add(torus);
+        });
+
+        const purpleLight = new THREE.PointLight(0xa855f7, 3.5, 40);
+        purpleLight.position.set(0, 12, -5);
+        roomGroup.add(purpleLight);
+        break;
+      }
+
+      case "druid": {
+        if (scene) scene.background = new THREE.Color(0x142617);
+        const leafMat = new THREE.MeshStandardMaterial({ color: 0x2e7d32, roughness: 0.75, metalness: 0.05, flatShading: true });
+        const trunkMat = new THREE.MeshStandardMaterial({ color: 0x5d4037, roughness: 0.9, metalness: 0.05 });
+        const floorMat = new THREE.MeshStandardMaterial({ color: 0x1b4324, roughness: 0.95, metalness: 0.02 });
+        const floor = new THREE.Mesh(new THREE.BoxGeometry(60, 1, 60), floorMat);
+        floor.position.set(0, -0.5, 0);
+        floor.receiveShadow = true;
+        roomGroup.add(floor);
+
+        // Green THREE.ConeGeometry trees
+        const treePositions = [
+          [-14, -14, 4.0, 15],
+          [14, -14, 4.5, 16],
+          [-18, 0, 3.5, 13],
+          [18, 0, 3.8, 14],
+          [-12, 14, 3.2, 12],
+          [12, 14, 3.2, 12],
+          [0, -18, 4.2, 15]
+        ];
+        treePositions.forEach(([x, z, radius, height]) => {
+          const trunk = new THREE.Mesh(
+            new THREE.CylinderGeometry(radius * 0.25, radius * 0.35, height * 0.35, 8),
+            trunkMat
+          );
+          trunk.position.set(x, height * 0.175, z);
+          trunk.castShadow = true;
+          roomGroup.add(trunk);
+
+          const cone = new THREE.Mesh(
+            new THREE.ConeGeometry(radius, height * 0.8, 8),
+            leafMat
+          );
+          cone.position.set(x, height * 0.35 + height * 0.4, z);
+          cone.castShadow = true;
+          roomGroup.add(cone);
+        });
+        break;
+      }
+
+      default: {
+        if (scene) scene.background = new THREE.Color(0x222222);
+        const wallMat = new THREE.MeshStandardMaterial({ color: 0x555555 });
+        const floor = new THREE.Mesh(new THREE.BoxGeometry(60, 1, 60), wallMat);
+        floor.position.set(0, -0.5, 0);
+        roomGroup.add(floor);
+        break;
+      }
     }
 
-    const assets = envAssets || AssetManager.envModels;
-    const room = MapGenerator.createLobbyScene(scene, LobbyEnvironment.currentClass, assets);
+    const room = {
+      group: roomGroup,
+      dispose: () => {
+        if (scene) scene.remove(roomGroup);
+      }
+    };
     LobbyEnvironment.currentRoom = room;
-    MapGenerator.ensureLighting(scene);
+    if (scene) MapGenerator.ensureLighting(scene);
 
     if (camera) {
       camera.position.set(0, 15, 50);

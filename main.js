@@ -152,6 +152,7 @@ window.hostMatch = async function (mapName) {
   if (masterUi) {
     masterUi.style.display = 'none';
   }
+  document.body.requestPointerLock();
   const mapSelectEl = document.getElementById('mapSelect');
   const selectedMap = mapSelectEl ? mapSelectEl.value : (mapName || 'Desert Ruins');
   if (window.Playroom && typeof window.Playroom.setState === 'function') {
@@ -165,6 +166,7 @@ window.joinMatch = async function (roomCode) {
   if (masterUi) {
     masterUi.style.display = 'none';
   }
+  document.body.requestPointerLock();
   return await joinMatch(roomCode);
 };
 
@@ -207,6 +209,8 @@ export function loadMap(type) {
   }
   activeMapType = target || selectedMap || "Desert";
   currentMapData = MapGenerator.loadMap(scene, activeMapType, AssetManager.envModels);
+  MapGenerator.isLoaded = true;
+  window.isMapLoaded = true;
   verifySceneLighting(scene);
   return currentMapData;
 }
@@ -810,7 +814,7 @@ function updateLocalPlayer(dt) {
   }
 
   // Gravity & Continuous Floor Collision with Spawn Clipping Failsafe
-  if (!MapGenerator.isLoaded) {
+  if (!MapGenerator.isLoaded && !window.isMapLoaded) {
     // Failsafe: gravity is 0 and Y-velocity is frozen until MapGenerator.isLoaded === true
     avatar.velocity.y = 0;
     if (pos.y < 25) {
