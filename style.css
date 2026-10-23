@@ -42,7 +42,7 @@ html, body {
   pointer-events: none;
 }
 #lobby > * { pointer-events: auto; }
-.class-card, .start-button, .parchment-action, .scroll-close, .skill-btn, #roomCode {
+.class-card, .start-button, .parchment-action, .scroll-close, .skill-btn, #roomCode, #enter-lobby-overlay, #btn-enter-lobby {
   pointer-events: auto !important;
 }
 .cosmic-title-wrap { position: fixed; top: clamp(28px, 7vh, 72px); left: 50%; transform: translateX(-50%); text-align: center; color: #f4e7c5; }

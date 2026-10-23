@@ -69,6 +69,17 @@
     </div>
   </div>
 
+  <div id="enter-lobby-overlay" class="fixed inset-0 z-50 flex flex-col items-center justify-center bg-black/75 backdrop-blur-sm cursor-pointer pointer-events-auto" style="display: none;">
+    <div class="text-center p-8 border-2 border-amber-600/70 rounded-2xl bg-stone-900/95 shadow-2xl max-w-md pointer-events-auto">
+      <p class="text-amber-500 font-serif tracking-widest text-xs uppercase mb-1">Playable 3D Multiplayer Lobby</p>
+      <h2 class="text-3xl font-bold font-serif text-amber-300 mb-2">Roundtable Hold</h2>
+      <p class="text-stone-300 font-serif mb-6 text-sm">Gathering place of champions. Control your hero with WASD and look around with mouse.</p>
+      <button id="btn-enter-lobby" type="button" class="px-8 py-3.5 bg-gradient-to-r from-amber-700 via-amber-600 to-amber-700 hover:from-amber-600 hover:to-amber-500 text-amber-100 font-bold font-serif text-lg rounded-xl shadow-xl border border-amber-400/60 transition-all transform hover:scale-105 active:scale-95 pointer-events-auto">
+        Click to Enter Lobby
+      </button>
+    </div>
+  </div>
+
   <div id="hud" hidden><div class="hud-chip" id="hud-class"></div><div class="hp-wrap"><div id="hp-fill"></div><span id="hp-text">100</span></div><div class="hud-chip" id="hud-state"></div></div>
   <div id="mobile-controls" hidden><div id="joystick-move" class="joystick" aria-hidden="true"><div class="joystick-base"></div><div class="joystick-knob"></div></div><div id="skill-cluster"><button type="button" id="btn-primary" class="skill-btn">ATK</button><button type="button" id="btn-skill1" class="skill-btn">Q</button><button type="button" id="btn-skill2" class="skill-btn">E</button></div><div id="joystick-aim" class="joystick" aria-hidden="true"><div class="joystick-base"></div><div class="joystick-knob"></div></div></div>
 </body>

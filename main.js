@@ -27,7 +27,7 @@ import {
   updateHazards,
   upsertFighter
 } from "./combat.js";
-import { MapGenerator, LobbyEnvironment } from "./maps.js";
+import { SharedLobby, MapGenerator, LobbyEnvironment } from "./maps.js";
 import { VFXManager } from "./vfx.js";
 import {
   getConnectedPlayers,
@@ -68,11 +68,11 @@ renderer.shadowMap.type = THREE.PCFSoftShadowMap;
 renderer.outputColorSpace = THREE.SRGBColorSpace;
 
 const scene = new THREE.Scene();
-scene.background = new THREE.Color(0xd2b48c);
-scene.fog = new THREE.FogExp2(0xd2b48c, 0.002);
+scene.background = new THREE.Color(0x181a20);
+scene.fog = new THREE.FogExp2(0x181a20, 0.003);
 
-const camera = new THREE.PerspectiveCamera(55, window.innerWidth / window.innerHeight, 0.1, 180);
-camera.position.set(0, 15, 50);
+const camera = new THREE.PerspectiveCamera(55, window.innerWidth / window.innerHeight, 0.1, 200);
+camera.position.set(0, 15, 30);
 camera.lookAt(0, 0, 0);
 
 const ambient = new THREE.AmbientLight(0xffffff, 1.0);
@@ -130,13 +130,16 @@ const trapGeom = new THREE.CylinderGeometry(1, 1, 0.18, 8);
 
 VFXManager.attach(scene);
 
-let activeMapType = "Desert";
+let activeMapType = "Roundtable Hold";
 let currentMapData = null;
 
 // ==========================================
 // GLOBAL STATE & HOOKS FOR EXTERNAL UI
 // ==========================================
-window.gameState = "TITLE_SCREEN";
+window.gameState = "ROUNDTABLE_LOBBY";
+window.maxPlayers = 10;
+window.teamFormat = "FFA";
+window.selectedMap = "PENDING";
 window.isServerBrowserOpen = false;
 
 window.openServerBrowser = function () {
@@ -154,8 +157,11 @@ window.hostMatch = async function (mapName) {
   }
   document.body.requestPointerLock();
   const mapSelectEl = document.getElementById('mapSelect');
-  const selectedMap = mapSelectEl ? mapSelectEl.value : (mapName || 'Desert Ruins');
+  const selectedMap = mapSelectEl ? mapSelectEl.value : (mapName || 'PENDING');
   if (window.Playroom && typeof window.Playroom.setState === 'function') {
+    window.Playroom.setState('gameState', 'ROUNDTABLE_LOBBY', true);
+    window.Playroom.setState('maxPlayers', 10, true);
+    window.Playroom.setState('teamFormat', 'FFA', true);
     window.Playroom.setState('selectedMap', selectedMap, true);
   }
   return await hostMatch(selectedMap);
@@ -172,22 +178,26 @@ window.joinMatch = async function (roomCode) {
 
 export async function selectClass(className) {
   const id = (className || selectedClass || "rogue").toLowerCase();
-  // 1. Set gameState = 'LOBBY'
-  window.gameState = "LOBBY";
+  window.selectedClass = id;
 
-  // 3. Call LobbyEnvironment.loadRoom(className) to switch 3D scene to corresponding diorama
-  LobbyEnvironment.loadRoom(id, AssetManager.envModels);
-  verifySceneLighting(scene);
-
-  // 2. Trigger AssetManager to quietly load the selected character's .glb model in background
-  try {
-    await AssetManager.loadCharacter(id);
-  } catch (e) {
-    console.warn("Quiet load character model:", e);
+  // Morph local player model in real-time if already in lobby
+  const local = getLocalPlayer();
+  const player = local || { id: "local-hero", getState: () => null, setState: () => {} };
+  if (avatars.has(player.id)) {
+    const oldAvatar = avatars.get(player.id);
+    const oldPos = oldAvatar.mesh.position.clone();
+    const oldRot = oldAvatar.mesh.rotation.y;
+    removeAvatar(player);
+    const newAvatar = createAvatar(player);
+    newAvatar.mesh.position.copy(oldPos);
+    newAvatar.mesh.rotation.y = oldRot;
+    setupCameraForLocalPlayer(newAvatar);
   }
 
-  // When selectClass resolves, place 3D character mesh directly in center of active diorama
-  LobbyEnvironment.setCharacter(id);
+  try {
+    await AssetManager.loadCharacter(id);
+  } catch (e) {}
+
   verifySceneLighting(scene);
   return id;
 }
@@ -199,24 +209,21 @@ export function updateLobbyScene(className) {
 window.updateLobbyScene = updateLobbyScene;
 
 export function loadMap(type) {
-  LobbyEnvironment.dispose();
   if (currentMapData && currentMapData.dispose) {
-    currentMapData.dispose();
+    try {
+      currentMapData.dispose();
+    } catch (e) {}
   }
-  let target = type;
-  if (!target && window.Playroom && typeof window.Playroom.getState === "function") {
-    target = window.Playroom.getState("selectedMap");
-  }
-  activeMapType = target || selectedMap || "Desert";
-  currentMapData = MapGenerator.loadMap(scene, activeMapType, AssetManager.envModels);
-  MapGenerator.isLoaded = true;
+  activeMapType = "Roundtable Hold";
+  currentMapData = SharedLobby.build(scene);
+  SharedLobby.isLoaded = true;
   window.isMapLoaded = true;
   verifySceneLighting(scene);
   return currentMapData;
 }
 
-// Ensure the floor THREE.Box3 is generated before physics loop starts applying gravity
-currentMapData = MapGenerator.loadMap(scene, 'Desert');
+// Build the Roundtable Hold immediately so it is instantly playable
+currentMapData = SharedLobby.build(scene);
 
 const avatars = new Map();
 const keys = Object.create(null);
@@ -239,12 +246,13 @@ let outgoingHits = [];
 let assetsReady = false;
 
 function spawnOffset(index) {
-  const count = Math.max(getConnectedPlayers().length, 1);
-  const angle = (index / count) * Math.PI * 2;
+  const count = 10;
+  const idx = (typeof index === "number" ? index : avatars.size) % count;
+  const angle = idx * ((Math.PI * 2) / count);
   return {
-    x: Math.cos(angle) * 8,
-    y: 25, // Drop from y = 25 onto initialized floor
-    z: Math.sin(angle) * 8
+    x: Math.cos(angle) * 12,
+    y: 10, // Drop from y = 10 onto initialized floor
+    z: Math.sin(angle) * 12
   };
 }
 
@@ -266,10 +274,8 @@ function createAvatar(player) {
   const rig = AssetManager.createRig(classId);
   scene.add(rig.root);
 
-  const mapSpawns = currentMapData && currentMapData.spawnPoints;
-  const teamSpawn = mapSpawns && (mapSpawns[team % mapSpawns.length] || mapSpawns[0]);
-  const spawn = player.getState("pos") || (teamSpawn ? { x: teamSpawn.x, y: 25, z: teamSpawn.z } : spawnOffset(avatars.size));
-  const initialY = (spawn.y !== undefined && spawn.y >= 25) ? spawn.y : 25;
+  const spawn = player.getState("pos") || spawnOffset(avatars.size);
+  const initialY = (spawn.y !== undefined && spawn.y >= 0) ? spawn.y : 10;
   rig.root.position.set(spawn.x, initialY, spawn.z);
   rig.root.rotation.y = player.getState("rot") || 0;
 
@@ -294,6 +300,11 @@ function createAvatar(player) {
   rig.root.userData.avatar = avatar;
   rig.root.userData.velocity = avatar.velocity;
   avatars.set(player.id, avatar);
+
+  if (isPlayerLocal(player)) {
+    setupCameraForLocalPlayer(avatar);
+  }
+
   return avatar;
 }
 
@@ -319,28 +330,25 @@ function bindJoinHandlers() {
     if (masterUi) {
       masterUi.style.display = "none";
     }
+    const overlay = document.getElementById("enter-lobby-overlay");
+    if (overlay) {
+      overlay.style.display = "none";
+    }
     document.querySelectorAll(".debug, #debug, [data-debug], #server-browser-hint, #lobby-status, #room-code-display").forEach((el) => {
       el.style.display = "none";
     });
 
-    if (window.Playroom && typeof window.Playroom.getState === "function") {
-      const syncdMap = window.Playroom.getState("selectedMap");
-      if (syncdMap && currentMapData && currentMapData.name !== syncdMap && currentMapData.type !== syncdMap.toLowerCase()) {
-        loadMap(syncdMap);
-      }
-    }
-
-    if (!assetsReady) {
-      return;
-    }
     if (!avatars.has(player.id)) {
       const avatar = createAvatar(player);
       if (isPlayerLocal(player) && !player.getState("pos")) {
         const placed = spawnOffset(avatars.size - 1);
-        avatar.mesh.position.set(placed.x, 25, placed.z);
+        avatar.mesh.position.set(placed.x, 10, placed.z);
         avatar.velocity.set(0, 0, 0);
         avatar.isGrounded = false;
-        player.setState("pos", { x: placed.x, y: 25, z: placed.z }, true);
+        player.setState("pos", { x: placed.x, y: 10, z: placed.z }, true);
+      }
+      if (isPlayerLocal(player)) {
+        setupCameraForLocalPlayer(avatar);
       }
     }
     refreshPlayerHud();
@@ -454,30 +462,14 @@ bindJoystick(document.getElementById("joystick-aim"), aimInput, (vector) => {
 });
 
 function clampToArena(position, yLocked) {
-  const lower = (activeMapType || "").toLowerCase();
-  if (lower.includes("desert") || lower.includes("sands")) {
-    position.x = Math.max(-44, Math.min(44, position.x));
-    position.z = Math.max(-44, Math.min(44, position.z));
-    return;
+  // Circular Roundtable room constraint (radius 38.5)
+  const dist = Math.hypot(position.x, position.z);
+  const maxRadius = 38.5;
+  if (dist > maxRadius) {
+    position.x = (position.x / dist) * maxRadius;
+    position.z = (position.z / dist) * maxRadius;
   }
-  if (lower.includes("swamp")) {
-    position.x = Math.max(-44, Math.min(44, position.x));
-    position.z = Math.max(-44, Math.min(44, position.z));
-    return;
-  }
-  if (lower.includes("village") || lower.includes("overgrown")) {
-    position.x = Math.max(-28.2, Math.min(28.2, position.x));
-    position.z = Math.max(-28.2, Math.min(28.2, position.z));
-    return;
-  }
-  const maxBound = 65;
-  if (Math.abs(position.x) > maxBound) {
-    position.x = Math.sign(position.x) * maxBound;
-  }
-  if (Math.abs(position.z) > maxBound) {
-    position.z = Math.sign(position.z) * maxBound;
-  }
-  if (yLocked && !lower.includes("magma") && !lower.includes("clockwork")) {
+  if (yLocked) {
     position.y = 0;
   }
 }
@@ -584,26 +576,40 @@ function lerpAngle(from, to, t) {
   return from + diff * t;
 }
 
+let cameraPivot = null;
+
+export function setupCameraForLocalPlayer(avatar) {
+  if (!avatar || !avatar.mesh) return;
+  if (cameraPivot && cameraPivot.parent === avatar.mesh) return;
+
+  if (camera.parent) {
+    camera.parent.remove(camera);
+  }
+  if (cameraPivot && cameraPivot.parent) {
+    cameraPivot.parent.remove(cameraPivot);
+  }
+
+  cameraPivot = new THREE.Object3D();
+  cameraPivot.name = "camera-pivot";
+  cameraPivot.position.set(0, 0, 0);
+  avatar.mesh.add(cameraPivot);
+
+  // Once player mesh is added to the scene, parent camera directly to pivot attached to player mesh, offset by (x: 0, y: 3, z: 6)
+  camera.position.set(0, 3, 6);
+  camera.lookAt(0, 1.5, 0);
+  cameraPivot.add(camera);
+}
+
 function followLocalPlayer(avatar, dt) {
   if (!avatar) {
     return;
   }
-  const pos = avatar.mesh.position;
-  const horizontalDist = CAMERA_OFFSET_Z * Math.cos(cameraPitch);
-  const verticalDist = CAMERA_OFFSET_Z * Math.sin(cameraPitch);
-
-  cameraGoal.set(
-    pos.x + Math.sin(cameraYaw) * horizontalDist,
-    pos.y + CAMERA_OFFSET_Y + verticalDist,
-    pos.z + Math.cos(cameraYaw) * horizontalDist
-  );
-
-  const t = 1 - Math.exp(-CAMERA_LERP * dt);
-  camera.position.lerp(cameraGoal, t);
-
-  lookTarget.set(pos.x, pos.y + 1.4, pos.z);
-  camera.lookAt(lookTarget);
-  sun.target.position.copy(pos);
+  setupCameraForLocalPlayer(avatar);
+  if (cameraPivot) {
+    cameraPivot.rotation.y = cameraYaw - avatar.mesh.rotation.y;
+    cameraPivot.rotation.x = cameraPitch;
+  }
+  sun.target.position.copy(avatar.mesh.position);
 }
 
 function mergeRemoteFighter(player) {
@@ -1222,6 +1228,56 @@ if (bannerBtn) {
   });
 }
 
+function setupEnterLobbyOverlay() {
+  const overlay = document.getElementById("enter-lobby-overlay");
+  const btnEnter = document.getElementById("btn-enter-lobby");
+  const startBtn = document.querySelector(".start-button");
+
+  const activateLobby = () => {
+    try {
+      document.body.requestPointerLock();
+    } catch (e) {}
+    if (overlay) overlay.style.display = "none";
+    const masterUi = document.getElementById("master-ui");
+    if (masterUi) masterUi.style.display = "none";
+    gameStarted = true;
+    window.gameState = "ROUNDTABLE_LOBBY";
+
+    let local = getLocalPlayer() || { id: "local-hero", getState: () => null, setState: () => {} };
+    let av = avatars.get(local.id);
+    if (!av) {
+      av = createAvatar(local);
+    }
+    setupCameraForLocalPlayer(av);
+  };
+
+  if (btnEnter) {
+    btnEnter.addEventListener("click", activateLobby);
+  }
+  if (overlay) {
+    overlay.addEventListener("click", (e) => {
+      if (e.target === overlay || e.target.closest("#btn-enter-lobby")) {
+        activateLobby();
+      }
+    });
+  }
+  if (startBtn) {
+    startBtn.addEventListener("click", () => {
+      if (overlay) {
+        overlay.style.display = "flex";
+      } else {
+        activateLobby();
+      }
+    });
+  }
+
+  document.addEventListener("pointerlockchange", () => {
+    if (!document.pointerLockElement && gameStarted && overlay) {
+      overlay.style.display = "flex";
+    }
+  });
+}
+
 function frame(now) {
   const dt = Math.min(0.05, (now - lastFrameTime) / 1000);
   lastFrameTime = now;
@@ -1237,13 +1293,8 @@ function frame(now) {
     currentMapData.update(dt, now / 1000);
   }
 
-  // Lobby 3D Scene Animation & Camera Position Lock
-  if ((window.gameState === "TITLE_SCREEN" || window.gameState === "LOBBY") && !gameStarted) {
-    LobbyEnvironment.update(dt, now / 1000);
-  }
-
   let localAvatar = null;
-  if (gameStarted && assetsReady) {
+  if (gameStarted) {
     localAvatar = updateLocalPlayer(dt);
     followLocalPlayer(localAvatar, dt);
     syncRemotePlayers(dt);
@@ -1263,6 +1314,14 @@ function frame(now) {
       networkAccumulator = 0;
       pushLocalNetworkState(localAvatar);
     }
+  } else {
+    // Before pointerlock entry, keep local avatar and camera updated
+    const local = getLocalPlayer() || { id: "local-hero" };
+    const av = avatars.get(local.id);
+    if (av) {
+      av.rig.update(dt);
+      followLocalPlayer(av, dt);
+    }
   }
 
   renderer.render(scene, camera);
@@ -1271,23 +1330,15 @@ function frame(now) {
 
 window.addEventListener("cosmic-clash-start", () => {
   gameStarted = true;
-  window.gameState = "IN_GAME";
-  LobbyEnvironment.dispose();
-
-  let targetMap = "Desert";
-  if (window.Playroom && typeof window.Playroom.getState === "function") {
-    const syncd = window.Playroom.getState("selectedMap");
-    if (syncd) {
-      targetMap = syncd;
-    }
-  } else if (selectedMap) {
-    targetMap = selectedMap;
-  }
-  loadMap(targetMap);
+  window.gameState = "ROUNDTABLE_LOBBY";
 
   const masterUi = document.getElementById("master-ui");
   if (masterUi) {
     masterUi.style.display = "none";
+  }
+  const overlay = document.getElementById("enter-lobby-overlay");
+  if (overlay) {
+    overlay.style.display = "none";
   }
   document.querySelectorAll(".debug, #debug, [data-debug], #server-browser-hint, #lobby-status, #room-code-display").forEach((el) => {
     el.style.display = "none";
@@ -1303,9 +1354,7 @@ window.addEventListener("cosmic-clash-start", () => {
       avatar = createAvatar(player);
     }
     if (isPlayerLocal(player)) {
-      avatar.mesh.position.y = 25;
-      avatar.velocity.set(0, 0, 0);
-      avatar.isGrounded = false;
+      setupCameraForLocalPlayer(avatar);
     }
   });
 });
@@ -1321,29 +1370,30 @@ async function boot() {
   window._threeScene = scene;
   window._threeCamera = camera;
   verifySceneLighting(scene);
-  LobbyEnvironment.init(scene, camera);
 
-  // Ensure the floor THREE.Box3 is generated before physics loop starts applying gravity
-  currentMapData = MapGenerator.loadMap(scene, 'Desert');
+  // Build the massive native Three.js Roundtable Lobby
+  currentMapData = SharedLobby.build(scene);
   verifySceneLighting(scene);
 
-  // Initial title screen state & diorama
-  window.gameState = "TITLE_SCREEN";
-  LobbyEnvironment.loadRoom(selectedClass || "rogue", AssetManager.envModels);
-  verifySceneLighting(scene);
+  window.gameState = "ROUNDTABLE_LOBBY";
+  window.maxPlayers = 10;
+  window.teamFormat = "FFA";
+  window.selectedMap = "PENDING";
 
   bindJoinHandlers();
   initLobby();
+  setupEnterLobbyOverlay();
   requestAnimationFrame(frame);
+
+  // Pre-spawn local hero avatar immediately in SharedLobby so 3D world is populated right away
+  const local = getLocalPlayer() || { id: "local-hero", getState: () => null, setState: () => {} };
+  if (!avatars.has(local.id)) {
+    const av = createAvatar(local);
+    setupCameraForLocalPlayer(av);
+  }
 
   await AssetManager.loadModels();
   assetsReady = true;
-
-  // Place initial character model in center of diorama once assets ready
-  if (window.gameState !== "IN_GAME") {
-    LobbyEnvironment.setCharacter(selectedClass || "rogue");
-    verifySceneLighting(scene);
-  }
 }
 
 boot();

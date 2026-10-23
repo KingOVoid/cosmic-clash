@@ -20,7 +20,7 @@ const DEFAULT_STATS = Object.freeze({
 
 export let selectedClass = "rogue";
 export let selectedTeam = 0;
-export let selectedMap = "Desert Ruins";
+export let selectedMap = "PENDING";
 
 const connectedPlayers = [];
 const playerColorById = new Map();
@@ -134,7 +134,9 @@ function bindPlayer(player) {
   ensurePlayerStats(player);
 
   if (!player.getState("pos")) {
-    player.setState("pos", { x: 0, y: 25, z: 0 }, true);
+    const idx = connectedPlayers.length % 10;
+    const ang = idx * (Math.PI * 2 / 10);
+    player.setState("pos", { x: Math.cos(ang) * 12, y: 10, z: Math.sin(ang) * 12 }, true);
   }
   if (typeof player.getState("rot") !== "number") {
     player.setState("rot", 0, true);
@@ -206,7 +208,7 @@ async function connectToRoom(options, mapName) {
 
   const config = {
     skipLobby: true,
-    maxPlayersPerRoom: 12
+    maxPlayersPerRoom: 10
   };
   if (options.roomCode) {
     config.roomCode = options.roomCode;
@@ -216,9 +218,17 @@ async function connectToRoom(options, mapName) {
   sessionReady = true;
   localPlayer = Playroom.myPlayer();
 
-  const chosen = mapName || selectedMap || "Desert";
   if (!options.roomCode || (typeof Playroom.isHost === "function" && Playroom.isHost())) {
-    Playroom.setState("selectedMap", chosen, true);
+    Playroom.setState("gameState", "ROUNDTABLE_LOBBY", true);
+    Playroom.setState("maxPlayers", 10, true);
+    Playroom.setState("teamFormat", "FFA", true);
+    Playroom.setState("selectedMap", "PENDING", true);
+  }
+  if (typeof window !== "undefined") {
+    window.gameState = "ROUNDTABLE_LOBBY";
+    window.maxPlayers = 10;
+    window.teamFormat = "FFA";
+    window.selectedMap = "PENDING";
   }
 
   Playroom.onPlayerJoin(bindPlayer);
