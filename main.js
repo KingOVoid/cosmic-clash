@@ -69,7 +69,7 @@ renderer.outputColorSpace = THREE.SRGBColorSpace;
 
 const scene = new THREE.Scene();
 scene.background = new THREE.Color(0xd2b48c);
-scene.fog = new THREE.FogExp2(0xd2b48c, 0.015);
+scene.fog = new THREE.FogExp2(0xd2b48c, 0.002);
 
 const camera = new THREE.PerspectiveCamera(55, window.innerWidth / window.innerHeight, 0.1, 180);
 camera.position.copy(CAMERA_OFFSET);
@@ -446,13 +446,13 @@ bindJoystick(document.getElementById("joystick-aim"), aimInput, (vector) => {
 function clampToArena(position, yLocked) {
   const lower = (activeMapType || "").toLowerCase();
   if (lower.includes("desert") || lower.includes("sands")) {
-    position.x = Math.max(-15.5, Math.min(15.5, position.x));
-    position.z = Math.max(-41.5, Math.min(41.5, position.z));
+    position.x = Math.max(-44, Math.min(44, position.x));
+    position.z = Math.max(-44, Math.min(44, position.z));
     return;
   }
   if (lower.includes("swamp")) {
-    position.x = Math.max(-33.5, Math.min(33.5, position.x));
-    position.z = Math.max(-33.5, Math.min(33.5, position.z));
+    position.x = Math.max(-44, Math.min(44, position.x));
+    position.z = Math.max(-44, Math.min(44, position.z));
     return;
   }
   if (lower.includes("village") || lower.includes("overgrown")) {

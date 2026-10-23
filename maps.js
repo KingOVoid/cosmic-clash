@@ -1,6 +1,6 @@
 import * as THREE from "three";
 import { GLTFLoader } from "three/addons/loaders/GLTFLoader.js";
-import { AssetManager } from "./assets.js";
+import { AssetManager, normalizeDioramaModel } from "./assets.js";
 
 export class MapGenerator {
   static isLoaded = false;
@@ -557,7 +557,7 @@ export class MapGenerator {
     group.name = "map-desert-ruins";
     scene.add(group);
 
-    scene.fog = new THREE.FogExp2(0xd2b48c, 0.015);
+    scene.fog = new THREE.FogExp2(0xd2b48c, 0.002);
     scene.background = new THREE.Color(0xd2b48c);
 
     const platformBoxes = [];
@@ -565,27 +565,27 @@ export class MapGenerator {
 
     // Collision: Large flat THREE.Box3 bounding box under the walkable area to act as the floor
     const floorBox = new THREE.Box3(
-      new THREE.Vector3(-18, -2, -45),
-      new THREE.Vector3(18, 0, 45)
+      new THREE.Vector3(-45, -2, -45),
+      new THREE.Vector3(45, 0, 45)
     );
     platformBoxes.push(floorBox);
 
     // Collision: 4 static THREE.Box3 invisible walls around the perimeter of the diorama to keep players from falling out of bounds
     const wallNorth = new THREE.Box3(
-      new THREE.Vector3(-25, -2, 41.5),
-      new THREE.Vector3(25, 25, 46.5)
+      new THREE.Vector3(-50, -2, 45),
+      new THREE.Vector3(50, 25, 50)
     );
     const wallSouth = new THREE.Box3(
-      new THREE.Vector3(-25, -2, -46.5),
-      new THREE.Vector3(25, 25, -41.5)
+      new THREE.Vector3(-50, -2, -50),
+      new THREE.Vector3(50, 25, -45)
     );
     const wallEast = new THREE.Box3(
-      new THREE.Vector3(15.5, -2, -46),
-      new THREE.Vector3(20.5, 25, 46)
+      new THREE.Vector3(45, -2, -50),
+      new THREE.Vector3(50, 25, 50)
     );
     const wallWest = new THREE.Box3(
-      new THREE.Vector3(-20.5, -2, -46),
-      new THREE.Vector3(-15.5, 25, 46)
+      new THREE.Vector3(-50, -2, -50),
+      new THREE.Vector3(-45, 25, 50)
     );
 
     obstacleBoxes.push(wallNorth, wallSouth, wallEast, wallWest);
@@ -616,7 +616,20 @@ export class MapGenerator {
 
     if (sandsData && sandsData.scene) {
       dioramaMesh = sandsData.scene.clone(true);
-      dioramaMesh.position.set(0, 0, 0);
+      const box = new THREE.Box3().setFromObject(dioramaMesh);
+      const size = new THREE.Vector3();
+      box.getSize(size);
+      const maxDim = Math.max(size.x, size.z);
+      if (maxDim > 0.001) {
+        dioramaMesh.scale.setScalar(100 / maxDim);
+      }
+      const scaledBox = new THREE.Box3().setFromObject(dioramaMesh);
+      const center = new THREE.Vector3();
+      scaledBox.getCenter(center);
+      dioramaMesh.position.x = -center.x;
+      dioramaMesh.position.y = -scaledBox.min.y;
+      dioramaMesh.position.z = -center.z;
+
       dioramaMesh.traverse((child) => {
         if (child.isMesh) {
           child.castShadow = true;
@@ -638,7 +651,20 @@ export class MapGenerator {
         loader.load(urls[idx], (gltf) => {
           if (gltf && gltf.scene) {
             dioramaMesh = gltf.scene;
-            dioramaMesh.position.set(0, 0, 0);
+            const box = new THREE.Box3().setFromObject(gltf.scene);
+            const size = new THREE.Vector3();
+            box.getSize(size);
+            const maxDim = Math.max(size.x, size.z);
+            if (maxDim > 0.001) {
+              dioramaMesh.scale.setScalar(100 / maxDim);
+            }
+            const scaledBox = new THREE.Box3().setFromObject(dioramaMesh);
+            const center = new THREE.Vector3();
+            scaledBox.getCenter(center);
+            dioramaMesh.position.x = -center.x;
+            dioramaMesh.position.y = -scaledBox.min.y;
+            dioramaMesh.position.z = -center.z;
+
             dioramaMesh.traverse((child) => {
               if (child.isMesh) {
                 child.castShadow = true;
@@ -647,13 +673,16 @@ export class MapGenerator {
             });
             group.add(dioramaMesh);
           }
-        }, undefined, () => loadAttempt(idx + 1));
+        }, undefined, function(error) {
+          console.error("GLTF Load Error:", error);
+          loadAttempt(idx + 1);
+        });
       };
       loadAttempt(0);
 
       // Visual fallback while async load resolves
       const fallbackFloor = new THREE.Mesh(
-        new THREE.BoxGeometry(32, 1, 84),
+        new THREE.BoxGeometry(90, 1, 90),
         new THREE.MeshStandardMaterial({ color: 0xd2b48c, roughness: 0.95, metalness: 0.05 })
       );
       fallbackFloor.position.set(0, -0.5, 0);
@@ -694,7 +723,7 @@ export class MapGenerator {
     group.name = "map-swamp";
     scene.add(group);
 
-    scene.fog = new THREE.FogExp2(0x1a2e1d, 0.02);
+    scene.fog = new THREE.FogExp2(0x1a2e1d, 0.003);
     scene.background = new THREE.Color(0x142417);
 
     const platformBoxes = [];
@@ -702,27 +731,27 @@ export class MapGenerator {
 
     // Collision: Large flat THREE.Box3 bounding box under the walkable area to act as the floor
     const floorBox = new THREE.Box3(
-      new THREE.Vector3(-35, -2, -35),
-      new THREE.Vector3(35, 0, 35)
+      new THREE.Vector3(-45, -2, -45),
+      new THREE.Vector3(45, 0, 45)
     );
     platformBoxes.push(floorBox);
 
     // Collision: 4 static THREE.Box3 invisible perimeter walls
     const wallNorth = new THREE.Box3(
-      new THREE.Vector3(-36, -2, 34),
-      new THREE.Vector3(36, 25, 38)
+      new THREE.Vector3(-50, -2, 45),
+      new THREE.Vector3(50, 25, 50)
     );
     const wallSouth = new THREE.Box3(
-      new THREE.Vector3(-36, -2, -38),
-      new THREE.Vector3(36, 25, -34)
+      new THREE.Vector3(-50, -2, -50),
+      new THREE.Vector3(50, 25, -45)
     );
     const wallEast = new THREE.Box3(
-      new THREE.Vector3(34, -2, -36),
-      new THREE.Vector3(38, 25, 36)
+      new THREE.Vector3(45, -2, -50),
+      new THREE.Vector3(50, 25, 50)
     );
     const wallWest = new THREE.Box3(
-      new THREE.Vector3(-38, -2, -36),
-      new THREE.Vector3(-34, 25, 36)
+      new THREE.Vector3(-50, -2, -50),
+      new THREE.Vector3(-45, 25, 50)
     );
 
     obstacleBoxes.push(wallNorth, wallSouth, wallEast, wallWest);
@@ -737,7 +766,20 @@ export class MapGenerator {
 
     if (swampData && swampData.scene) {
       dioramaMesh = swampData.scene.clone(true);
-      dioramaMesh.position.set(0, 0, 0);
+      const box = new THREE.Box3().setFromObject(dioramaMesh);
+      const size = new THREE.Vector3();
+      box.getSize(size);
+      const maxDim = Math.max(size.x, size.z);
+      if (maxDim > 0.001) {
+        dioramaMesh.scale.setScalar(100 / maxDim);
+      }
+      const scaledBox = new THREE.Box3().setFromObject(dioramaMesh);
+      const center = new THREE.Vector3();
+      scaledBox.getCenter(center);
+      dioramaMesh.position.x = -center.x;
+      dioramaMesh.position.y = -scaledBox.min.y;
+      dioramaMesh.position.z = -center.z;
+
       dioramaMesh.traverse((child) => {
         if (child.isMesh) {
           child.castShadow = true;
@@ -750,7 +792,20 @@ export class MapGenerator {
       loader.load("./assets/environment/swamp/scene.gltf", (gltf) => {
         if (gltf && gltf.scene) {
           dioramaMesh = gltf.scene;
-          dioramaMesh.position.set(0, 0, 0);
+          const box = new THREE.Box3().setFromObject(gltf.scene);
+          const size = new THREE.Vector3();
+          box.getSize(size);
+          const maxDim = Math.max(size.x, size.z);
+          if (maxDim > 0.001) {
+            dioramaMesh.scale.setScalar(100 / maxDim);
+          }
+          const scaledBox = new THREE.Box3().setFromObject(dioramaMesh);
+          const center = new THREE.Vector3();
+          scaledBox.getCenter(center);
+          dioramaMesh.position.x = -center.x;
+          dioramaMesh.position.y = -scaledBox.min.y;
+          dioramaMesh.position.z = -center.z;
+
           dioramaMesh.traverse((child) => {
             if (child.isMesh) {
               child.castShadow = true;
@@ -759,10 +814,12 @@ export class MapGenerator {
           });
           group.add(dioramaMesh);
         }
-      }, undefined, () => {});
+      }, undefined, function(error) {
+        console.error("GLTF Load Error:", error);
+      });
 
       const fallbackFloor = new THREE.Mesh(
-        new THREE.BoxGeometry(70, 1, 70),
+        new THREE.BoxGeometry(90, 1, 90),
         new THREE.MeshStandardMaterial({ color: 0x223825, roughness: 0.9, metalness: 0.1 })
       );
       fallbackFloor.position.set(0, -0.5, 0);
@@ -918,7 +975,9 @@ export class MapGenerator {
         b.traverse((n) => { if (n.isMesh) { n.castShadow = true; n.receiveShadow = true; } });
         group.add(b);
       }
-    }, undefined, () => {});
+    }, undefined, function(error) {
+      console.error("GLTF Load Error:", error);
+    });
     loader.load("./assets/environment/Workbench.gltf", (gltf) => {
       if (gltf && gltf.scene) {
         const wb = gltf.scene;
@@ -927,7 +986,9 @@ export class MapGenerator {
         wb.traverse((n) => { if (n.isMesh) { n.castShadow = true; n.receiveShadow = true; } });
         group.add(wb);
       }
-    }, undefined, () => {});
+    }, undefined, function(error) {
+      console.error("GLTF Load Error:", error);
+    });
     loader.load("./assets/environment/Anvil.gltf", (gltf) => {
       if (gltf && gltf.scene) {
         const anvil = gltf.scene;
@@ -936,7 +997,9 @@ export class MapGenerator {
         anvil.traverse((n) => { if (n.isMesh) { n.castShadow = true; n.receiveShadow = true; } });
         group.add(anvil);
       }
-    }, undefined, () => {});
+    }, undefined, function(error) {
+      console.error("GLTF Load Error:", error);
+    });
 
     // Torch Sconces with Flickering Amber Flame
     const torchLightL = new THREE.PointLight(0xff6600, 2.8, 16);
@@ -1089,7 +1152,9 @@ export class MapGenerator {
         ban.traverse((n) => { if (n.isMesh) { n.castShadow = true; n.receiveShadow = true; } });
         group.add(ban);
       }
-    }, undefined, () => {});
+    }, undefined, function(error) {
+      console.error("GLTF Load Error:", error);
+    });
     loader.load("./assets/environment/Banner_2.gltf", (gltf) => {
       if (gltf && gltf.scene) {
         const ban2 = gltf.scene;
@@ -1098,7 +1163,9 @@ export class MapGenerator {
         ban2.traverse((n) => { if (n.isMesh) { n.castShadow = true; n.receiveShadow = true; } });
         group.add(ban2);
       }
-    }, undefined, () => {});
+    }, undefined, function(error) {
+      console.error("GLTF Load Error:", error);
+    });
     loader.load("./assets/environment/Bench.gltf", (gltf) => {
       if (gltf && gltf.scene) {
         const bench1 = gltf.scene;
@@ -1111,7 +1178,9 @@ export class MapGenerator {
         bench2.scale.set(1.3, 1.3, 1.3);
         group.add(bench2);
       }
-    }, undefined, () => {});
+    }, undefined, function(error) {
+      console.error("GLTF Load Error:", error);
+    });
 
     // Warm Cathedral Sunlight & Golden Braziers
     const holySun = new THREE.DirectionalLight(0xfffaea, 2.5);
@@ -1357,7 +1426,9 @@ export class MapGenerator {
         bush.traverse((n) => { if (n.isMesh) { n.castShadow = true; n.receiveShadow = true; } });
         group.add(bush);
       }
-    }, undefined, () => {});
+    }, undefined, function(error) {
+      console.error("GLTF Load Error:", error);
+    });
     loader.load("./assets/environment/BirchTree_1.gltf", (gltf) => {
       if (gltf && gltf.scene) {
         const birch = gltf.scene;
@@ -1366,7 +1437,9 @@ export class MapGenerator {
         birch.traverse((n) => { if (n.isMesh) { n.castShadow = true; n.receiveShadow = true; } });
         group.add(birch);
       }
-    }, undefined, () => {});
+    }, undefined, function(error) {
+      console.error("GLTF Load Error:", error);
+    });
 
     // Glowing Green Floating Particles / Fireflies
     const particleCount = 140;
@@ -1519,6 +1592,42 @@ export class LobbyEnvironment {
     LobbyEnvironment.camera = camera;
   }
 
+  static loadDiorama(url, onLoaded) {
+    const loader = new GLTFLoader();
+    loader.load(
+      url,
+      (gltf) => {
+        if (gltf && gltf.scene) {
+          const box = new THREE.Box3().setFromObject(gltf.scene);
+          const size = new THREE.Vector3();
+          box.getSize(size);
+          const maxDim = Math.max(size.x, size.z);
+          if (maxDim > 0.001) {
+            gltf.scene.scale.setScalar(100 / maxDim);
+          }
+          const scaledBox = new THREE.Box3().setFromObject(gltf.scene);
+          const center = new THREE.Vector3();
+          scaledBox.getCenter(center);
+          gltf.scene.position.x = -center.x;
+          gltf.scene.position.y = -scaledBox.min.y;
+          gltf.scene.position.z = -center.z;
+
+          gltf.scene.traverse((child) => {
+            if (child.isMesh) {
+              child.castShadow = true;
+              child.receiveShadow = true;
+            }
+          });
+          if (onLoaded) onLoaded(gltf.scene);
+        }
+      },
+      undefined,
+      function(error) {
+        console.error("GLTF Load Error:", error);
+      }
+    );
+  }
+
   static loadRoom(className, envAssets = null) {
     const scene = LobbyEnvironment.scene || (typeof window !== "undefined" && window._threeScene);
     const camera = LobbyEnvironment.camera || (typeof window !== "undefined" && window._threeCamera);
@@ -1529,6 +1638,30 @@ export class LobbyEnvironment {
     }
     LobbyEnvironment.characterRig = null;
     LobbyEnvironment.currentClass = (className || "rogue").toLowerCase();
+
+    if (className && (className.includes("desert") || className.includes("swamp") || className.endsWith(".gltf") || className.endsWith(".glb"))) {
+      const url = className.includes("swamp")
+        ? "./assets/environment/swamp/scene.gltf"
+        : (className.includes("desert") ? "./assets/environment/desert/scene.gltf" : className);
+      const dioramaGroup = new THREE.Group();
+      dioramaGroup.name = "lobby-diorama";
+      scene.add(dioramaGroup);
+      LobbyEnvironment.loadDiorama(url, (dioramaScene) => {
+        dioramaGroup.add(dioramaScene);
+      });
+      const room = {
+        group: dioramaGroup,
+        dispose: () => { scene.remove(dioramaGroup); }
+      };
+      LobbyEnvironment.currentRoom = room;
+      MapGenerator.ensureLighting(scene);
+      if (camera) {
+        camera.position.set(0, 5, 15);
+        camera.lookAt(0, 2, 0);
+        camera.updateProjectionMatrix();
+      }
+      return room;
+    }
 
     const assets = envAssets || AssetManager.envModels;
     const room = MapGenerator.createLobbyScene(scene, LobbyEnvironment.currentClass, assets);

@@ -191,6 +191,23 @@ function createFallbackSwamp() {
   return { geometry: geom, material: mat, scene: mesh };
 }
 
+export function normalizeDioramaModel(sceneOrMesh, targetWidth = 100) {
+  if (!sceneOrMesh) return;
+  const box = new THREE.Box3().setFromObject(sceneOrMesh);
+  const size = new THREE.Vector3();
+  box.getSize(size);
+  const maxDim = Math.max(size.x, size.z);
+  if (maxDim > 0.001) {
+    sceneOrMesh.scale.setScalar(targetWidth / maxDim);
+  }
+  const scaledBox = new THREE.Box3().setFromObject(sceneOrMesh);
+  const center = new THREE.Vector3();
+  scaledBox.getCenter(center);
+  sceneOrMesh.position.x = -center.x;
+  sceneOrMesh.position.y = -scaledBox.min.y;
+  sceneOrMesh.position.z = -center.z;
+}
+
 class AssetManagerImpl {
   constructor() {
     this.loader = new GLTFLoader();
@@ -233,6 +250,7 @@ class AssetManagerImpl {
         fallback: false
       });
     } catch (error) {
+      console.error("GLTF Load Error:", error);
       this.templates.set(classId, {
         scene: null,
         clips: this.fallbackClips,
@@ -268,6 +286,7 @@ class AssetManagerImpl {
           return entry;
         }
       } catch (e) {
+        console.error("GLTF Load Error:", e);
         // Continue to next candidate
       }
     }
@@ -287,6 +306,9 @@ class AssetManagerImpl {
       try {
         const gltf = await this.loader.loadAsync(urls[i]);
         if (gltf && gltf.scene) {
+          if (key === "desert" || key === "sands" || key === "swamp") {
+            normalizeDioramaModel(gltf.scene, 100);
+          }
           let foundMesh = null;
           gltf.scene.traverse((node) => {
             if (node.isMesh && !foundMesh) {
@@ -321,6 +343,7 @@ class AssetManagerImpl {
           }
         }
       } catch (error) {
+        console.error("GLTF Load Error:", error);
         // Continue trying next candidate
       }
     }
