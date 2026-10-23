@@ -6,6 +6,9 @@
   <meta name="apple-mobile-web-app-capable" content="yes" />
   <meta name="mobile-web-app-capable" content="yes" />
   <title>Cosmic Clash</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Cinzel:wght@500;700;900&family=Cinzel+Decorative:wght@700&family=EB+Garamond:ital,wght@0,400;0,600;0,700;1,400&display=swap" rel="stylesheet" />
   <link rel="stylesheet" href="./style.css" />
   <script type="importmap">
   {
@@ -57,8 +60,8 @@
       </label>
 
       <div class="lobby-actions">
-        <button id="btn-host" type="button">Host Match</button>
-        <button id="btn-join" type="button">Join Room</button>
+        <button id="btn-host" type="button" onclick="try{document.body.requestPointerLock();}catch(e){}">Host Match</button>
+        <button id="btn-join" type="button" onclick="try{document.body.requestPointerLock();}catch(e){}">Join Room</button>
       </div>
 
       <p id="lobby-status" class="status" role="status">Ready when you are.</p>
@@ -92,6 +95,43 @@
     <div id="joystick-aim" class="joystick" aria-hidden="true">
       <div class="joystick-base"></div>
       <div class="joystick-knob"></div>
+    </div>
+  </div>
+  <div id="win-loss-overlay" class="overlay-hidden" aria-hidden="true">
+    <div class="banner-stage">
+      <div class="banner-rigging">
+        <div class="banner-finial finial-left"></div>
+        <div class="banner-pole"></div>
+        <div class="banner-finial finial-right"></div>
+        <div class="banner-cord cord-left"></div>
+        <div class="banner-cord cord-right"></div>
+      </div>
+      <div class="hanging-banner" id="outcome-banner">
+        <div class="banner-cloth-pattern"></div>
+        <div class="banner-heraldry">
+          <div class="banner-crest-icon"></div>
+        </div>
+        <div class="banner-content">
+          <h2 id="banner-title">YOU WIN</h2>
+          <p id="banner-subtitle">Glory to the Realm</p>
+          <button id="btn-banner-action" type="button">Battle Again</button>
+        </div>
+        <div class="tattered-burn-marks"></div>
+        <div class="fire-particles" id="fire-particles">
+          <span class="fire-tongue ft-1"></span>
+          <span class="fire-tongue ft-2"></span>
+          <span class="fire-tongue ft-3"></span>
+          <span class="fire-tongue ft-4"></span>
+          <span class="fire-tongue ft-5"></span>
+          <span class="fire-tongue ft-6"></span>
+          <span class="fire-ember fe-1"></span>
+          <span class="fire-ember fe-2"></span>
+          <span class="fire-ember fe-3"></span>
+          <span class="fire-ember fe-4"></span>
+          <span class="fire-ember fe-5"></span>
+          <span class="fire-ember fe-6"></span>
+        </div>
+      </div>
     </div>
   </div>
 </body>

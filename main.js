@@ -98,8 +98,13 @@ VFXManager.attach(scene);
 
 let activeMapType = "Desert Ruins";
 let currentMapData = null;
+let currentLobbyData = null;
 
 export function loadMap(type) {
+  if (currentLobbyData && currentLobbyData.dispose) {
+    currentLobbyData.dispose();
+    currentLobbyData = null;
+  }
   if (currentMapData && currentMapData.dispose) {
     currentMapData.dispose();
   }
@@ -108,7 +113,26 @@ export function loadMap(type) {
   return currentMapData;
 }
 
-MapGenerator.loadMap(scene, 'Desert Ruins');
+export function updateLobbyScene(className) {
+  if (gameStarted) {
+    return;
+  }
+  if (currentLobbyData && currentLobbyData.dispose) {
+    currentLobbyData.dispose();
+    currentLobbyData = null;
+  }
+  if (currentMapData && currentMapData.dispose) {
+    currentMapData.dispose();
+    currentMapData = null;
+  }
+  currentLobbyData = MapGenerator.createLobbyScene(scene, className, AssetManager.envModels);
+  camera.position.set(0, 3.4, 9.2);
+  camera.lookAt(0, 1.8, 0);
+}
+window.updateLobbyScene = updateLobbyScene;
+
+// Ensure the floor THREE.Box3 is generated before physics loop starts applying gravity
+currentMapData = MapGenerator.loadMap(scene, 'Desert Ruins');
 
 const avatars = new Map();
 const keys = Object.create(null);
@@ -130,10 +154,11 @@ let outgoingHits = [];
 let assetsReady = false;
 
 function spawnOffset(index) {
-  const angle = (index / Math.max(getConnectedPlayers().length, 1)) * Math.PI * 2;
+  const count = Math.max(getConnectedPlayers().length, 1);
+  const angle = (index / count) * Math.PI * 2;
   return {
     x: Math.cos(angle) * 8,
-    y: PLAYER_HEIGHT * 0.5,
+    y: 15, // Drop from y = 15
     z: Math.sin(angle) * 8
   };
 }
@@ -158,8 +183,9 @@ function createAvatar(player) {
 
   const mapSpawns = currentMapData && currentMapData.spawnPoints;
   const teamSpawn = mapSpawns && (mapSpawns[team % mapSpawns.length] || mapSpawns[0]);
-  const spawn = player.getState("pos") || (teamSpawn ? { x: teamSpawn.x, y: teamSpawn.y || 0, z: teamSpawn.z } : spawnOffset(avatars.size));
-  rig.root.position.set(spawn.x, spawn.y || 0, spawn.z);
+  const spawn = player.getState("pos") || (teamSpawn ? { x: teamSpawn.x, y: 15, z: teamSpawn.z } : spawnOffset(avatars.size));
+  const initialY = (spawn.y !== undefined && spawn.y > 0) ? spawn.y : 15;
+  rig.root.position.set(spawn.x, initialY, spawn.z);
   rig.root.rotation.y = player.getState("rot") || 0;
 
   const fighter = createFighterState(player.id, classId, team);
@@ -211,8 +237,10 @@ function bindJoinHandlers() {
       const avatar = createAvatar(player);
       if (isPlayerLocal(player) && !player.getState("pos")) {
         const placed = spawnOffset(avatars.size - 1);
-        avatar.mesh.position.set(placed.x, 0, placed.z);
-        player.setState("pos", { x: placed.x, y: PLAYER_HEIGHT * 0.5, z: placed.z }, true);
+        avatar.mesh.position.set(placed.x, 15, placed.z);
+        avatar.velocity.set(0, 0, 0);
+        avatar.isGrounded = false;
+        player.setState("pos", { x: placed.x, y: 15, z: placed.z }, true);
       }
     }
     refreshPlayerHud();
@@ -664,27 +692,39 @@ function updateLocalPlayer(dt) {
     }
   }
 
-  // Gravity & Platform Collision
+  // Gravity & Continuous Floor Collision
   const GRAVITY = -32;
+  const prevY = pos.y;
   avatar.velocity.y += GRAVITY * dt;
-  pos.y += avatar.velocity.y * dt;
+  const nextY = pos.y + avatar.velocity.y * dt;
 
-  const platforms = currentMapData ? currentMapData.platformBoxes : [];
+  // Ensure floor THREE.Box3 is generated before physics loop starts applying gravity
+  const platforms = (currentMapData && currentMapData.platformBoxes && currentMapData.platformBoxes.length > 0)
+    ? currentMapData.platformBoxes
+    : [new THREE.Box3(new THREE.Vector3(-60, -10, -60), new THREE.Vector3(60, 0, 60))];
+
   let groundY = -Infinity;
   for (let i = 0; i < platforms.length; i += 1) {
     const p = platforms[i];
     if (pos.x >= p.min.x && pos.x <= p.max.x && pos.z >= p.min.z && pos.z <= p.max.z) {
-      if (p.max.y > groundY && pos.y >= p.max.y - 1.5) {
-        groundY = p.max.y;
+      if (prevY >= p.max.y - 0.5 && nextY <= p.max.y) {
+        if (p.max.y > groundY) {
+          groundY = p.max.y;
+        }
+      } else if (nextY >= p.min.y && nextY <= p.max.y) {
+        if (p.max.y > groundY) {
+          groundY = p.max.y;
+        }
       }
     }
   }
 
-  if (groundY !== -Infinity && pos.y <= groundY) {
+  if (groundY !== -Infinity && nextY <= groundY) {
     pos.y = groundY;
     avatar.velocity.y = 0;
     avatar.isGrounded = true;
   } else {
+    pos.y = nextY;
     avatar.isGrounded = false;
   }
 
@@ -711,6 +751,10 @@ function updateLocalPlayer(dt) {
     avatar.mesh.rotation.y = Math.atan2(aimX, aimZ);
   } else if (desiredMove.lengthSq() > 0.0001 && fighter.sidestepUntil <= 0) {
     avatar.mesh.rotation.y = Math.atan2(desiredMove.x, desiredMove.z);
+  } else if (document.pointerLockElement) {
+    camera.getWorldDirection(cameraForward);
+    cameraForward.y = 0;
+    avatar.mesh.rotation.y = Math.atan2(cameraForward.x, cameraForward.z);
   }
 
   clampToArena(avatar.mesh.position, false);
@@ -978,12 +1022,92 @@ window.addEventListener("keydown", (event) => {
   }
 });
 
+function initPointerLockControls() {
+  const hostBtn = document.getElementById("btn-host");
+  const joinBtn = document.getElementById("btn-join");
+  const lockPointer = () => {
+    try {
+      document.body.requestPointerLock();
+    } catch (e) {}
+  };
+  if (hostBtn) hostBtn.addEventListener("click", lockPointer);
+  if (joinBtn) joinBtn.addEventListener("click", lockPointer);
+
+  canvas.addEventListener("click", () => {
+    if (gameStarted && !document.pointerLockElement) {
+      lockPointer();
+    }
+  });
+
+  window.addEventListener("mousemove", (event) => {
+    if (document.pointerLockElement) {
+      const MOUSE_SENSITIVITY = 0.0026;
+      yaw -= event.movementX * MOUSE_SENSITIVITY;
+    }
+  });
+}
+
+export function showWinLossOverlay(type) {
+  const overlay = document.getElementById("win-loss-overlay");
+  const title = document.getElementById("banner-title");
+  const subtitle = document.getElementById("banner-subtitle");
+  if (!overlay) return;
+
+  overlay.classList.remove("overlay-hidden", "state-win", "state-loss");
+  document.body.classList.remove("game-over-loss");
+
+  if (type === "win") {
+    overlay.classList.add("state-win");
+    if (title) title.textContent = "YOU WIN";
+    if (subtitle) subtitle.textContent = "Glory to the Realm · Victory Achieved";
+  } else {
+    overlay.classList.add("state-loss");
+    document.body.classList.add("game-over-loss");
+    if (title) title.textContent = "YOU LOST";
+    if (subtitle) subtitle.textContent = "Fallen in Combat · The Realm Has Fallen";
+  }
+
+  if (document.exitPointerLock) {
+    try {
+      document.exitPointerLock();
+    } catch (e) {}
+  }
+}
+window.showWinLossOverlay = showWinLossOverlay;
+
+export function hideWinLossOverlay() {
+  const overlay = document.getElementById("win-loss-overlay");
+  if (overlay) {
+    overlay.classList.add("overlay-hidden");
+    overlay.classList.remove("state-win", "state-loss");
+  }
+  document.body.classList.remove("game-over-loss");
+}
+window.hideWinLossOverlay = hideWinLossOverlay;
+
+const bannerBtn = document.getElementById("btn-banner-action");
+if (bannerBtn) {
+  bannerBtn.addEventListener("click", () => {
+    hideWinLossOverlay();
+    window.location.reload();
+  });
+}
+
 function frame(now) {
   const dt = Math.min(0.05, (now - lastFrameTime) / 1000);
   lastFrameTime = now;
 
   if (currentMapData && currentMapData.update) {
     currentMapData.update(dt, now / 1000);
+  }
+
+  // Lobby 3D Scene Animation & Camera Orbit
+  if (!gameStarted && currentLobbyData && currentLobbyData.update) {
+    currentLobbyData.update(dt, now / 1000);
+    const orbitT = (now / 1000) * 0.15;
+    camera.position.x = Math.sin(orbitT) * 1.6;
+    camera.position.z = 9.2 + Math.cos(orbitT) * 0.7;
+    camera.lookAt(0, 1.8, 0);
   }
 
   let localAvatar = null;
@@ -994,7 +1118,13 @@ function frame(now) {
     renderWorldFx();
     const local = getLocalPlayer();
     if (local) {
-      updateHud(getAllFighters().get(local.id));
+      const localFighter = getAllFighters().get(local.id);
+      updateHud(localFighter);
+      // Win/Loss Condition Check
+      if (localFighter && localFighter.hp <= 0 && localFighter.state === "downed" && !window._outcomeTriggered) {
+        window._outcomeTriggered = true;
+        setTimeout(() => showWinLossOverlay("loss"), 1200);
+      }
     }
     networkAccumulator += dt;
     if (networkAccumulator >= NETWORK_INTERVAL) {
@@ -1009,31 +1139,46 @@ function frame(now) {
 
 window.addEventListener("cosmic-clash-start", () => {
   gameStarted = true;
-  if (selectedMap && selectedMap !== activeMapType) {
-    loadMap(selectedMap);
+  if (currentLobbyData && currentLobbyData.dispose) {
+    currentLobbyData.dispose();
+    currentLobbyData = null;
   }
+  loadMap(selectedMap || "Desert Ruins");
+
   const mobile = document.getElementById("mobile-controls");
   if (mobile) {
     mobile.hidden = false;
   }
   getConnectedPlayers().forEach((player) => {
-    if (!avatars.has(player.id)) {
-      createAvatar(player);
+    let avatar = avatars.get(player.id);
+    if (!avatar) {
+      avatar = createAvatar(player);
+    }
+    if (isPlayerLocal(player)) {
+      avatar.mesh.position.y = 15;
+      avatar.velocity.set(0, 0, 0);
+      avatar.isGrounded = false;
     }
   });
 });
 
 window.addEventListener("cosmic-clash-map-change", (event) => {
-  loadMap(event.detail);
+  if (gameStarted) {
+    loadMap(event.detail);
+  }
 });
 
 async function boot() {
-  await AssetManager.loadModels();
-  assetsReady = true;
+  initPointerLockControls();
+  // Ensure the floor THREE.Box3 is generated before physics loop starts applying gravity
   currentMapData = MapGenerator.loadMap(scene, 'Desert Ruins');
+  // Load initial 3D lobby scene for selected class (rogue by default)
+  updateLobbyScene(selectedClass || "rogue");
   bindJoinHandlers();
   initLobby();
   requestAnimationFrame(frame);
+  await AssetManager.loadModels();
+  assetsReady = true;
 }
 
 boot();

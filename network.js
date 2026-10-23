@@ -286,6 +286,10 @@ export function initLobby() {
       classSelect.querySelectorAll(".class-card").forEach((node) => {
         node.classList.toggle("selected", node === button);
       });
+      if (typeof window.updateLobbyScene === "function") {
+        window.updateLobbyScene(selectedClass);
+      }
+      window.dispatchEvent(new CustomEvent("cosmic-clash-class-change", { detail: selectedClass }));
     });
   }
   if (teamSelect) {
@@ -330,6 +334,9 @@ export function initLobby() {
   }
 
   hostButton.addEventListener("click", async () => {
+    try {
+      document.body.requestPointerLock();
+    } catch (e) {}
     if (sessionReady) {
       return;
     }
@@ -342,6 +349,9 @@ export function initLobby() {
   });
 
   joinButton.addEventListener("click", async () => {
+    try {
+      document.body.requestPointerLock();
+    } catch (e) {}
     if (sessionReady) {
       return;
     }
