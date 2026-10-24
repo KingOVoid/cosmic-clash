@@ -81,7 +81,7 @@ scene.add(cameraPivot);
 // Attach camera to cameraPivot at offset (x: 0, y: 3, z: 8)
 cameraPivot.add(camera);
 camera.position.set(0, 3, 8);
-camera.lookAt(0, 1.5, 0);
+camera.rotation.set(-0.18, 0, 0);
 
 const ambient = new THREE.AmbientLight(0x333b4d, 0.05);
 scene.add(ambient);
@@ -751,30 +751,31 @@ window.openCardSelect = function () {
 export function setupCameraForLocalPlayer(avatar) {
   if (!avatar || !avatar.mesh) return;
 
-  // Camera Pivot Fix: Ensure cameraPivot is strictly instantiated as a child of playerMesh
-  if (cameraPivot.parent !== avatar.mesh) {
+  if (cameraPivot.parent !== scene) {
     if (cameraPivot.parent) {
       cameraPivot.parent.remove(cameraPivot);
     }
-    avatar.mesh.add(cameraPivot);
+    scene.add(cameraPivot);
   }
-  cameraPivot.position.set(0, 0, 0);
+  cameraPivot.position.copy(avatar.mesh.position);
 
   if (camera.parent !== cameraPivot) {
     cameraPivot.add(camera);
   }
   camera.position.set(0, 3, 8);
-  camera.lookAt(0, 1.5, 0);
+  camera.rotation.set(-0.18, 0, 0);
 }
 
 function followLocalPlayer(avatar, dt) {
   if (!avatar || !avatar.mesh) {
     return;
   }
-  if (cameraPivot.parent !== avatar.mesh) {
-    setupCameraForLocalPlayer(avatar);
+  if (cameraPivot) {
+    cameraPivot.position.copy(avatar.mesh.position);
   }
-  sun.target.position.copy(avatar.mesh.position);
+  if (sun && sun.target) {
+    sun.target.position.copy(avatar.mesh.position);
+  }
 }
 
 function mergeRemoteFighter(player) {
@@ -1442,6 +1443,8 @@ if (bannerBtn) {
 }
 
 function frame(now) {
+  requestAnimationFrame(frame);
+
   const dt = Math.min(0.05, (now - lastFrameTime) / 1000);
   lastFrameTime = now;
 
@@ -1458,22 +1461,56 @@ function frame(now) {
     changeCharEl.style.display = shouldShow ? "block" : "none";
   }
 
-  // Ensure WASD movement, gravity/physics, and 3rd-person camera rotation are fully active when gameState === 'ROUNDTABLE_LOBBY' or 'PLAYING'
-  const isMovementActive = window.gameState === "ROUNDTABLE_LOBBY" || window.gameState === "PLAYING" || window.gameState === "IN_GAME" || gameStarted;
-  let localAvatar = null;
-  if (isMovementActive) {
-    localAvatar = updateLocalPlayer(dt);
-    followLocalPlayer(localAvatar, dt);
+  const gameState = window.gameState;
+  const localPlayer = getLocalPlayer() || (window.Playroom && typeof window.Playroom.myPlayer === "function" && window.Playroom.myPlayer()) || { id: "local-hero" };
+  const localAvatar = avatars.get(localPlayer.id);
+  const localPlayerMesh = localAvatar && localAvatar.mesh ? localAvatar.mesh : null;
+
+  // Null Safety in Game Loop: wait for player to click a UI button and spawn before doing any movement math
+  if (gameState === 'ROUNDTABLE_LOBBY' && !localPlayerMesh) {
+    renderer.render(scene, camera);
+    return;
+  }
+
+  // Cinematic Mouse Heft (Inertia)
+  currentYaw = THREE.MathUtils.lerp(currentYaw, targetYaw, 0.1);
+  currentPitch = THREE.MathUtils.lerp(currentPitch, targetPitch, 0.1);
+  if (cameraPivot) {
+    cameraPivot.rotation.y = currentYaw;
+    cameraPivot.rotation.x = -currentPitch;
+  }
+
+  // Dynamic Camera Pivot Tracking: pivot dynamically follows player without snapping rotation
+  if (cameraPivot && localPlayerMesh) {
+    cameraPivot.position.copy(localPlayerMesh.position);
+  }
+
+  // Base camera offset behind player
+  camera.position.set(0, 3, 8);
+  camera.rotation.set(-0.18, 0, 0);
+
+  // Hard Y-Clamp: after updating camera position, add failsafe
+  if (cameraPivot) {
+    cameraPivot.updateMatrixWorld(true);
+  }
+  if (camera.getWorldPosition(new THREE.Vector3()).y < 0.5) {
+    camera.position.y = 0.5;
+  }
+
+  // Active player physics and combat loop
+  if (localAvatar) {
+    updateLocalPlayer(dt);
     syncRemotePlayers(dt);
     renderWorldFx();
-    const local = getLocalPlayer();
-    if (local) {
-      const localFighter = getAllFighters().get(local.id);
-      updateHud(localFighter);
-      // Win/Loss Condition Check
-      if (localFighter && localFighter.hp <= 0 && localFighter.state === "downed" && !window._outcomeTriggered) {
-        window._outcomeTriggered = true;
-        setTimeout(() => showWinLossOverlay("loss"), 1200);
+    if (localPlayer) {
+      const localFighter = getAllFighters().get(localPlayer.id);
+      if (localFighter) {
+        updateHud(localFighter);
+        // Win/Loss Condition Check
+        if (localFighter && localFighter.hp <= 0 && localFighter.state === "downed" && !window._outcomeTriggered) {
+          window._outcomeTriggered = true;
+          setTimeout(() => showWinLossOverlay("loss"), 1200);
+        }
       }
     }
     networkAccumulator += dt;
@@ -1481,47 +1518,13 @@ function frame(now) {
       networkAccumulator = 0;
       pushLocalNetworkState(localAvatar);
     }
-  } else {
-    // Before active state, keep local avatar and camera updated
-    const local = getLocalPlayer() || { id: "local-hero" };
-    const av = avatars.get(local.id);
-    if (av) {
-      av.rig.update(dt);
-      followLocalPlayer(av, dt);
-    }
   }
 
-  // Cinematic Mouse Heft (Inertia)
-  currentYaw = THREE.MathUtils.lerp(currentYaw, targetYaw, 0.1);
-  currentPitch = THREE.MathUtils.lerp(currentPitch, targetPitch, 0.1);
-
-  const local = getLocalPlayer() || (window.Playroom && typeof window.Playroom.myPlayer === "function" && window.Playroom.myPlayer()) || { id: "local-hero" };
-  const avatar = avatars.get(local.id);
-  if (avatar && avatar.mesh) {
-    if (cameraPivot.parent !== avatar.mesh) {
-      setupCameraForLocalPlayer(avatar);
-    }
-    // When cameraPivot is child of avatar.mesh:
-    cameraPivot.rotation.y = currentYaw - avatar.mesh.rotation.y;
-    cameraPivot.rotation.x = -currentPitch;
-
-    // Base camera offset behind player
-    camera.position.set(0, 3, 8);
-    camera.lookAt(0, 1.5, 0);
-
-    // Hard Y-Clamp: after updating camera position, add failsafe
-    cameraPivot.updateMatrixWorld(true);
-    if (camera.getWorldPosition(new THREE.Vector3()).y < 0.5) {
-      camera.position.y = 0.5;
-    }
-  } else {
-    // Before player spawn: cinematic room view
-    camera.position.set(0, 4, 14);
-    camera.lookAt(0, 2, 0);
+  if (sun && sun.target && localPlayerMesh) {
+    sun.target.position.copy(localPlayerMesh.position);
   }
 
   renderer.render(scene, camera);
-  requestAnimationFrame(frame);
 }
 
 window.addEventListener("cosmic-clash-start", () => {

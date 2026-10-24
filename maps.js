@@ -266,10 +266,10 @@ export class SharedLobby {
     obstacleBoxes.push(new THREE.Box3(new THREE.Vector3(20, 0, -22), new THREE.Vector3(22, wallHeight, 22)));
 
     // ==========================================
-    // 4. ATMOSPHERIC LANTERN LIGHTING (4 Corners)
-    // Hanging from ceiling at y: 10 near four corners:
-    // (15, 10, 15), (-15, 10, 15), (15, 10, -15), (-15, 10, -15)
-    // (Central bonfire completely nuked)
+    // 4. HIGH-RES LANTERNS (Quaternius Integration)
+    // Asynchronously load ./assets/environment/Lantern.glb
+    // Position 4 clones near ceiling in 4 corners (x: ±15, y: 10, z: ±15)
+    // Attach warm PointLight(0xffaa00, 1.2, 25) directly to each clone
     // ==========================================
     const lanternPositions = [
       { x: 15, y: 10, z: 15 },
@@ -278,45 +278,48 @@ export class SharedLobby {
       { x: -15, y: 10, z: -15 }
     ];
 
-    const lanternGeom = new THREE.CylinderGeometry(0.2, 0.2, 0.6, 12);
-    const lanternMat = new THREE.MeshStandardMaterial({
-      color: 0x221a0f,
-      emissive: 0xffaa00,
-      emissiveIntensity: 1.8,
-      roughness: 0.3
-    });
-    const chainMat = new THREE.MeshStandardMaterial({
-      color: 0x111111,
-      roughness: 0.8,
-      metalness: 0.9
-    });
-    const chainGeom = new THREE.CylinderGeometry(0.015, 0.015, 1.7, 6);
-    const capGeom = new THREE.CylinderGeometry(0.26, 0.26, 0.06, 12);
-
     const lobbyLanterns = [];
-    for (const pos of lanternPositions) {
-      const chain = new THREE.Mesh(chainGeom, chainMat);
-      chain.position.set(pos.x, 11.15, pos.z);
-      group.add(chain);
+    const loadHighResLanterns = async () => {
+      let lanternScene = null;
+      const urls = [
+        "./assets/environment/Lantern.glb",
+        "./assets/environment/Lantern.gltf",
+        "./assets/environment/Lantern_Wall.gltf"
+      ];
+      for (const url of urls) {
+        try {
+          const gltf = await gltfLoader.loadAsync(url);
+          if (gltf && gltf.scene) {
+            lanternScene = gltf.scene;
+            break;
+          }
+        } catch (e) {}
+      }
 
-      const lantern = new THREE.Mesh(lanternGeom, lanternMat);
-      lantern.position.set(pos.x, pos.y, pos.z);
-      group.add(lantern);
+      if (!lanternScene) return;
 
-      const capTop = new THREE.Mesh(capGeom, chainMat);
-      capTop.position.set(pos.x, pos.y + 0.3, pos.z);
-      group.add(capTop);
+      for (const pos of lanternPositions) {
+        const lanternClone = lanternScene.clone(true);
+        lanternClone.position.set(pos.x, pos.y, pos.z);
+        lanternClone.scale.set(1.5, 1.5, 1.5);
 
-      const capBottom = new THREE.Mesh(capGeom, chainMat);
-      capBottom.position.set(pos.x, pos.y - 0.3, pos.z);
-      group.add(capBottom);
+        lanternClone.traverse((child) => {
+          if (child.isMesh) {
+            child.castShadow = true;
+            child.receiveShadow = true;
+          }
+        });
 
-      const light = new THREE.PointLight(0xffaa00, 1.2, 25);
-      light.position.set(pos.x, pos.y, pos.z);
-      group.add(light);
+        // Attach warm PointLight directly to the loaded GLTF clone
+        const light = new THREE.PointLight(0xffaa00, 1.2, 25);
+        light.position.set(0, -0.3, 0);
+        lanternClone.add(light);
 
-      lobbyLanterns.push({ lantern, light });
-    }
+        group.add(lanternClone);
+        lobbyLanterns.push({ lantern: lanternClone, light });
+      }
+    };
+    loadHighResLanterns();
 
     // ==========================================
     // 5. TOP-LEFT CORNER (x: -13, z: -13): ROGUE
