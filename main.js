@@ -1,4 +1,5 @@
 import * as THREE from "three";
+import { GLTFLoader } from "three/addons/loaders/GLTFLoader.js";
 import { AssetManager, PLAYER_HEIGHT, PLAYER_RADIUS, CLASS_COLORS } from "./assets.js";
 import {
   createFighterState,
@@ -294,7 +295,7 @@ function spawnOffset(index) {
 
 function readClassTeam(player) {
   const classId = isPlayerLocal(player)
-    ? selectedClass
+    ? (window.selectedClass || selectedClass || "rogue")
     : player.getState("classId") || (player.getState("fighter") && player.getState("fighter").classId) || "rogue";
   const networkedTeam = player.getState("team");
   const team = isPlayerLocal(player)
@@ -617,6 +618,314 @@ function lerpAngle(from, to, t) {
 
 let cameraPivot = null;
 
+export class CardSelector {
+  static isOpen = false;
+  static isMovementPaused = false;
+  static cards = [];
+  static raycaster = new THREE.Raycaster();
+  static mouse = new THREE.Vector2();
+  static loader = new GLTFLoader();
+  static cardModelsCache = new Map();
+  static cardGroup = null;
+
+  static async preload() {
+    const urls = [
+      "./assets/environment/0_Card_Front.gltf",
+      "./assets/environment/1_Fireball.gltf",
+      "./assets/environment/25_Element_Earth.gltf",
+      "./assets/environment/29_Block.gltf",
+      "./assets/environment/5_Steal.gltf"
+    ];
+    for (const url of urls) {
+      try {
+        const gltf = await CardSelector.loader.loadAsync(url);
+        if (gltf && gltf.scene) {
+          CardSelector.cardModelsCache.set(url, gltf.scene);
+        }
+      } catch (e) {
+        console.warn("Preload card model failed:", url, e);
+      }
+    }
+  }
+
+  static async open() {
+    if (CardSelector.isOpen) return;
+    CardSelector.isOpen = true;
+    CardSelector.isMovementPaused = true;
+
+    // Release pointer lock so mouse is free to hover and click cards
+    if (document.exitPointerLock) {
+      try {
+        document.exitPointerLock();
+      } catch (e) {}
+    }
+
+    if (CardSelector.cardGroup) {
+      camera.remove(CardSelector.cardGroup);
+    }
+    CardSelector.cardGroup = new THREE.Group();
+    CardSelector.cardGroup.name = "card-selection-hand";
+    camera.add(CardSelector.cardGroup);
+
+    CardSelector.cards = [];
+
+    const cardDefs = [
+      {
+        classId: "sorcerer",
+        label: "Sorcerer",
+        sub: "Arcane Fire",
+        modelUrl: "./assets/environment/1_Fireball.gltf",
+        glowColor: 0x3a86ff,
+        x: -3,
+        zRot: -0.12
+      },
+      {
+        classId: "druid",
+        label: "Druid",
+        sub: "Wild Earth",
+        modelUrl: "./assets/environment/25_Element_Earth.gltf",
+        glowColor: 0x2d6a4f,
+        x: -1,
+        zRot: -0.04
+      },
+      {
+        classId: "paladin",
+        label: "Paladin",
+        sub: "Shield & Sword",
+        modelUrl: "./assets/environment/29_Block.gltf",
+        glowColor: 0xffd60a,
+        x: 1,
+        zRot: 0.04
+      },
+      {
+        classId: "rogue",
+        label: "Rogue",
+        sub: "Shadow Dagger",
+        modelUrl: "./assets/environment/5_Steal.gltf",
+        glowColor: 0x9333ea,
+        x: 3,
+        zRot: 0.12
+      }
+    ];
+
+    for (let i = 0; i < cardDefs.length; i++) {
+      const def = cardDefs[i];
+      const card = new THREE.Group();
+      card.name = `card-${def.classId}`;
+      card.userData.classId = def.classId;
+      card.userData.targetX = def.x;
+      card.userData.targetY = -1.0;
+      card.userData.targetRotZ = def.zRot;
+      card.userData.baseRotZ = def.zRot;
+      card.userData.velocityY = 0;
+      card.userData.isHovered = false;
+
+      // Position as child of camera
+      // Spawn at y = -5, fanned out at x = -3, -1, 1, 3
+      card.position.set(def.x, -5.0, -4.5);
+      card.rotation.set(0, 0, def.zRot);
+      card.scale.set(0.68, 0.68, 0.68);
+
+      // Load card frame
+      let frontScene = CardSelector.cardModelsCache.get("./assets/environment/0_Card_Front.gltf");
+      if (!frontScene) {
+        try {
+          const gltf = await CardSelector.loader.loadAsync("./assets/environment/0_Card_Front.gltf");
+          frontScene = gltf.scene;
+          CardSelector.cardModelsCache.set("./assets/environment/0_Card_Front.gltf", frontScene);
+        } catch (e) {}
+      }
+      if (frontScene) {
+        const frontClone = frontScene.clone(true);
+        frontClone.userData.classId = def.classId;
+        frontClone.traverse((n) => {
+          if (n.isMesh) {
+            n.userData.classId = def.classId;
+            n.material = n.material.clone();
+          }
+        });
+        card.add(frontClone);
+      }
+
+      // Load card illustration (Quaternius 3D Cards Kit)
+      let illustScene = CardSelector.cardModelsCache.get(def.modelUrl);
+      if (!illustScene) {
+        try {
+          const gltf = await CardSelector.loader.loadAsync(def.modelUrl);
+          illustScene = gltf.scene;
+          CardSelector.cardModelsCache.set(def.modelUrl, illustScene);
+        } catch (e) {}
+      }
+      if (illustScene) {
+        const illustClone = illustScene.clone(true);
+        illustClone.userData.classId = def.classId;
+        illustClone.traverse((n) => {
+          if (n.isMesh) {
+            n.userData.classId = def.classId;
+            n.material = n.material.clone();
+          }
+        });
+        card.add(illustClone);
+      }
+
+      // Class name text banner
+      const canvasText = document.createElement("canvas");
+      canvasText.width = 256;
+      canvasText.height = 80;
+      const ctx = canvasText.getContext("2d");
+      ctx.fillStyle = "rgba(18, 16, 24, 0.9)";
+      ctx.roundRect(4, 4, 248, 72, 12);
+      ctx.fill();
+      ctx.lineWidth = 4;
+      ctx.strokeStyle = `#${def.glowColor.toString(16).padStart(6, "0")}`;
+      ctx.stroke();
+      ctx.fillStyle = "#fef08a";
+      ctx.font = "bold 28px 'Cinzel', serif";
+      ctx.textAlign = "center";
+      ctx.fillText(def.label.toUpperCase(), 128, 40);
+      ctx.fillStyle = "#d4af37";
+      ctx.font = "italic 16px 'EB Garamond', serif";
+      ctx.fillText(def.sub, 128, 62);
+
+      const labelTex = new THREE.CanvasTexture(canvasText);
+      const labelMat = new THREE.MeshBasicMaterial({ map: labelTex, transparent: true });
+      const labelMesh = new THREE.Mesh(new THREE.PlaneGeometry(1.8, 0.56), labelMat);
+      labelMesh.position.set(0, -1.35, 0.1);
+      labelMesh.userData.classId = def.classId;
+      card.add(labelMesh);
+
+      // Hit area plane for raycaster precision
+      const hitBackdrop = new THREE.Mesh(
+        new THREE.PlaneGeometry(2.4, 3.4),
+        new THREE.MeshBasicMaterial({ transparent: true, opacity: 0.0, depthWrite: false })
+      );
+      hitBackdrop.position.set(0, 0, 0.05);
+      hitBackdrop.userData.classId = def.classId;
+      card.add(hitBackdrop);
+
+      CardSelector.cardGroup.add(card);
+      CardSelector.cards.push(card);
+    }
+  }
+
+  static update(dt) {
+    if (!CardSelector.isOpen || !CardSelector.cards || CardSelector.cards.length === 0) return;
+    const k = 42.0;
+    const damping = 9.0;
+
+    for (const card of CardSelector.cards) {
+      const targetY = card.userData.isHovered ? -0.65 : card.userData.targetY;
+      const targetScale = card.userData.isHovered ? 0.76 : 0.68;
+      const targetRotZ = card.userData.isHovered ? 0 : card.userData.baseRotZ;
+
+      const dy = targetY - card.position.y;
+      card.userData.velocityY += dy * k * dt;
+      card.userData.velocityY *= Math.exp(-damping * dt);
+      card.position.y += card.userData.velocityY * dt;
+
+      card.rotation.z = THREE.MathUtils.lerp(card.rotation.z, targetRotZ, Math.min(1, dt * 12));
+      card.scale.lerp(new THREE.Vector3(targetScale, targetScale, targetScale), Math.min(1, dt * 14));
+    }
+  }
+
+  static onMouseMove(event) {
+    if (!CardSelector.isOpen || CardSelector.cards.length === 0) return;
+    CardSelector.mouse.x = (event.clientX / window.innerWidth) * 2 - 1;
+    CardSelector.mouse.y = -(event.clientY / window.innerHeight) * 2 + 1;
+    CardSelector.raycaster.setFromCamera(CardSelector.mouse, camera);
+
+    const intersects = CardSelector.raycaster.intersectObjects(CardSelector.cards, true);
+    let hoveredClass = null;
+    if (intersects.length > 0) {
+      let node = intersects[0].object;
+      while (node && !node.userData.classId && node.parent) {
+        node = node.parent;
+      }
+      if (node && node.userData.classId) {
+        hoveredClass = node.userData.classId;
+      }
+    }
+
+    for (const card of CardSelector.cards) {
+      card.userData.isHovered = Boolean(hoveredClass && card.userData.classId === hoveredClass);
+    }
+  }
+
+  static async onClick(event) {
+    if (!CardSelector.isOpen || CardSelector.cards.length === 0) return;
+    CardSelector.mouse.x = (event.clientX / window.innerWidth) * 2 - 1;
+    CardSelector.mouse.y = -(event.clientY / window.innerHeight) * 2 + 1;
+    CardSelector.raycaster.setFromCamera(CardSelector.mouse, camera);
+
+    const intersects = CardSelector.raycaster.intersectObjects(CardSelector.cards, true);
+    if (intersects.length === 0) return;
+
+    let node = intersects[0].object;
+    while (node && !node.userData.classId && node.parent) {
+      node = node.parent;
+    }
+    const chosenClass = node && node.userData.classId;
+    if (chosenClass) {
+      await CardSelector.selectClass(chosenClass);
+    }
+  }
+
+  static async selectClass(classId) {
+    const local = getLocalPlayer() || { id: "local-hero", getState: () => null, setState: () => {} };
+
+    // 1. Update Playroom playerState
+    if (typeof local.setState === "function") {
+      local.setState("classId", classId, true);
+      const fighter = getAllFighters().get(local.id);
+      if (fighter) {
+        fighter.classId = classId;
+        local.setState("fighter", serializeFighter(fighter), true);
+      }
+    }
+    if (typeof window !== "undefined") {
+      window.selectedClass = classId;
+    }
+
+    // 2. Swap local 3D mesh
+    await selectClass(classId);
+
+    // 3. Destroy card objects
+    CardSelector.close();
+
+    // 4. Unpause movement & re-capture pointer lock
+    CardSelector.isMovementPaused = false;
+    try {
+      document.body.requestPointerLock();
+    } catch (e) {}
+  }
+
+  static close() {
+    if (CardSelector.cardGroup) {
+      camera.remove(CardSelector.cardGroup);
+      CardSelector.cardGroup.traverse((child) => {
+        if (child.isMesh) {
+          if (child.geometry) child.geometry.dispose();
+          if (child.material) {
+            if (Array.isArray(child.material)) {
+              child.material.forEach((m) => m.dispose());
+            } else {
+              child.material.dispose();
+            }
+          }
+        }
+      });
+      CardSelector.cardGroup = null;
+    }
+    CardSelector.cards = [];
+    CardSelector.isOpen = false;
+    CardSelector.isMovementPaused = false;
+  }
+}
+
+window.openCardSelect = function () {
+  CardSelector.open();
+};
+
 export function setupCameraForLocalPlayer(avatar) {
   if (!avatar || !avatar.mesh) return;
   if (cameraPivot && cameraPivot.parent === avatar.mesh) return;
@@ -728,6 +1037,14 @@ function updateLocalPlayer(dt) {
   const fighter = getAllFighters().get(player.id);
   if (!avatar || !fighter) {
     return null;
+  }
+
+  if (CardSelector.isOpen || CardSelector.isMovementPaused) {
+    avatar.velocity.set(0, 0, 0);
+    fighter.anim = "Idle";
+    applyVisualState(avatar, fighter);
+    avatar.rig.update(dt);
+    return avatar;
   }
 
   pullIncomingHits(fighter);
@@ -953,11 +1270,19 @@ function syncRemotePlayers(dt) {
     if (isPlayerLocal(player)) {
       continue;
     }
+    const fighter = mergeRemoteFighter(player);
+    const remoteClassId = player.getState("classId") || (fighter && fighter.classId) || "rogue";
     let avatar = avatars.get(player.id);
     if (!avatar) {
       avatar = createAvatar(player);
+    } else if (avatar.classId !== remoteClassId) {
+      const oldPos = avatar.mesh.position.clone();
+      const oldRot = avatar.mesh.rotation.y;
+      removeAvatar(player);
+      avatar = createAvatar(player);
+      avatar.mesh.position.copy(oldPos);
+      avatar.mesh.rotation.y = oldRot;
     }
-    const fighter = mergeRemoteFighter(player);
     const pos = player.getState("pos");
     const rot = player.getState("rot");
     if (pos) {
@@ -1205,7 +1530,11 @@ function initPointerLockControls() {
   if (joinBtn) joinBtn.addEventListener("click", lockPointer);
 
   // Global click listener to renderer.domElement (the canvas)
-  renderer.domElement.addEventListener("click", () => {
+  renderer.domElement.addEventListener("click", (event) => {
+    if (CardSelector.isOpen) {
+      CardSelector.onClick(event);
+      return;
+    }
     const state = window.gameState;
     const masterUi = document.getElementById("master-ui");
     const isMenuVisible = masterUi && masterUi.style.display !== "none";
@@ -1218,11 +1547,21 @@ function initPointerLockControls() {
   });
 
   window.addEventListener("mousemove", (event) => {
+    if (CardSelector.isOpen) {
+      CardSelector.onMouseMove(event);
+      return;
+    }
     if (document.pointerLockElement) {
       const sens = 0.0024 * (window.mouseSensitivity || 1.0);
       cameraYaw -= event.movementX * sens;
       cameraPitch -= event.movementY * sens;
       cameraPitch = Math.max(-0.45, Math.min(1.15, cameraPitch));
+    }
+  });
+
+  window.addEventListener("keydown", (event) => {
+    if (event.code === "Escape" && CardSelector.isOpen) {
+      CardSelector.close();
     }
   });
 }
@@ -1279,6 +1618,17 @@ function frame(now) {
 
   if (currentMapData && currentMapData.update) {
     currentMapData.update(dt, now / 1000);
+  }
+
+  CardSelector.update(dt);
+
+  // Update Change Character button visibility (only in ROUNDTABLE_LOBBY)
+  const changeCharEl = document.getElementById("change-character-container");
+  if (changeCharEl) {
+    const masterUi = document.getElementById("master-ui");
+    const isMenuVisible = masterUi && masterUi.style.display !== "none";
+    const shouldShow = window.gameState === "ROUNDTABLE_LOBBY" && !isMenuVisible && !CardSelector.isOpen;
+    changeCharEl.style.display = shouldShow ? "block" : "none";
   }
 
   // Ensure WASD movement, gravity/physics, and 3rd-person camera rotation are fully active when gameState === 'ROUNDTABLE_LOBBY' or 'PLAYING'
@@ -1357,6 +1707,7 @@ window.addEventListener("cosmic-clash-map-change", (event) => {
 
 async function boot() {
   initPointerLockControls();
+  CardSelector.preload();
   window._threeScene = scene;
   window._threeCamera = camera;
   verifySceneLighting(scene);

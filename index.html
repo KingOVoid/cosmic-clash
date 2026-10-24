@@ -85,6 +85,13 @@
     </div>
   </div>
 
+  <!-- Change Character trigger button (appears when gameState === 'ROUNDTABLE_LOBBY') -->
+  <div id="change-character-container" class="fixed top-5 right-5 z-40 pointer-events-auto" style="display: none;">
+    <button id="btn-change-character" type="button" class="px-5 py-2.5 bg-gradient-to-r from-amber-800 via-amber-600 to-amber-800 hover:from-amber-700 hover:to-amber-500 text-amber-100 font-serif font-bold text-sm tracking-wider uppercase rounded-xl border border-amber-400/60 shadow-[0_4px_16px_rgba(0,0,0,0.6)] hover:shadow-[0_0_20px_rgba(245,158,11,0.5)] transition-all transform hover:scale-105 active:scale-95 cursor-pointer pointer-events-auto" onclick="window.openCardSelect()">
+      Change Character
+    </button>
+  </div>
+
   <div id="hud" hidden><div class="hud-chip" id="hud-class"></div><div class="hp-wrap"><div id="hp-fill"></div><span id="hp-text">100</span></div><div class="hud-chip" id="hud-state"></div></div>
   <div id="mobile-controls" hidden><div id="joystick-move" class="joystick" aria-hidden="true"><div class="joystick-base"></div><div class="joystick-knob"></div></div><div id="skill-cluster"><button type="button" id="btn-primary" class="skill-btn">ATK</button><button type="button" id="btn-skill1" class="skill-btn">Q</button><button type="button" id="btn-skill2" class="skill-btn">E</button></div><div id="joystick-aim" class="joystick" aria-hidden="true"><div class="joystick-base"></div><div class="joystick-knob"></div></div></div>
 </body>
