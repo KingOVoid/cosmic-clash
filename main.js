@@ -83,24 +83,24 @@ cameraPivot.add(camera);
 camera.position.set(0, 3, 8);
 camera.lookAt(0, 1.5, 0);
 
-const ambient = new THREE.AmbientLight(0xffffff, 1.0);
+const ambient = new THREE.AmbientLight(0x333b4d, 0.05);
 scene.add(ambient);
 
-const sun = new THREE.DirectionalLight(0xffffff, 1.5);
-sun.position.set(18, 28, 10);
+const sun = new THREE.DirectionalLight(0xffeedd, 0.25);
+sun.position.set(10, 11, 10);
 sun.castShadow = true;
 sun.shadow.mapSize.set(1024, 1024);
-sun.shadow.camera.near = 2;
-sun.shadow.camera.far = 70;
-sun.shadow.camera.left = -28;
-sun.shadow.camera.right = 28;
-sun.shadow.camera.top = 28;
-sun.shadow.camera.bottom = -28;
+sun.shadow.camera.near = 1;
+sun.shadow.camera.far = 40;
+sun.shadow.camera.left = -25;
+sun.shadow.camera.right = 25;
+sun.shadow.camera.top = 25;
+sun.shadow.camera.bottom = -25;
 sun.shadow.bias = -0.0008;
 scene.add(sun);
 scene.add(sun.target);
 
-const hemi = new THREE.HemisphereLight(0xffffff, 0x555555, 0.6);
+const hemi = new THREE.HemisphereLight(0x222633, 0x111318, 0.1);
 scene.add(hemi);
 
 export function verifySceneLighting(targetScene = scene) {
@@ -110,22 +110,22 @@ export function verifySceneLighting(targetScene = scene) {
   targetScene.traverse((obj) => {
     if (obj.isAmbientLight) {
       hasAmbient = true;
-      obj.color.setHex(0xffffff);
-      obj.intensity = Math.max(obj.intensity, 1.0);
+      obj.color.setHex(0x333b4d);
+      obj.intensity = 0.05;
     }
     if (obj.isDirectionalLight) {
       hasDirectional = true;
-      obj.color.setHex(0xffffff);
-      obj.intensity = Math.max(obj.intensity, 1.2);
+      obj.color.setHex(0xffeedd);
+      obj.intensity = 0.25;
     }
   });
   if (!hasAmbient) {
-    const amb = new THREE.AmbientLight(0xffffff, 1.0);
+    const amb = new THREE.AmbientLight(0x333b4d, 0.05);
     targetScene.add(amb);
   }
   if (!hasDirectional) {
-    const dir = new THREE.DirectionalLight(0xffffff, 1.5);
-    dir.position.set(18, 28, 10);
+    const dir = new THREE.DirectionalLight(0xffeedd, 0.25);
+    dir.position.set(10, 11, 10);
     dir.castShadow = true;
     targetScene.add(dir);
   }
@@ -281,6 +281,10 @@ const cameraRight = new THREE.Vector3();
 const worldUp = new THREE.Vector3(0, 1, 0);
 const fxMeshes = new Map();
 
+let targetYaw = 0;
+let targetPitch = 0.2;
+let currentYaw = 0;
+let currentPitch = 0.2;
 let cameraYaw = 0;
 let cameraPitch = 0.2;
 let networkAccumulator = 0;
@@ -294,9 +298,9 @@ function spawnOffset(index) {
   const idx = (typeof index === "number" ? index : avatars.size) % count;
   const angle = idx * ((Math.PI * 2) / count);
   return {
-    x: Math.cos(angle) * 12,
-    y: 10, // Drop from y = 10 onto initialized floor
-    z: Math.sin(angle) * 12
+    x: Math.cos(angle) * 6,
+    y: 3, // Safe drop inside 40x40 enclosed room
+    z: Math.sin(angle) * 6
   };
 }
 
@@ -500,17 +504,17 @@ function bindJoystick(root, vector, onAim) {
 bindJoystick(document.getElementById("joystick-move"), moveInput, null);
 bindJoystick(document.getElementById("joystick-aim"), aimInput, (vector) => {
   if (Math.abs(vector.x) > 0.08) {
-    cameraPivot.rotation.y -= vector.x * 0.065;
+    targetYaw -= vector.x * 0.065;
   }
   if (Math.abs(vector.y) > 0.08) {
-    cameraPivot.rotation.x -= vector.y * 0.04;
-    cameraPivot.rotation.x = Math.max(-0.5, Math.min(0.5, cameraPivot.rotation.x));
+    targetPitch -= vector.y * 0.04;
+    targetPitch = Math.max(-0.1, Math.min(0.8, targetPitch));
   }
 });
 
 function clampToArena(position, yLocked) {
-  // Strict square room constraint (60x60 arena, bounds [-28.5, 28.5])
-  const bound = 28.5;
+  // Strict square room constraint (40x40 arena, bounds [-18.5, 18.5])
+  const bound = 18.5;
   position.x = Math.max(-bound, Math.min(bound, position.x));
   position.z = Math.max(-bound, Math.min(bound, position.z));
   if (yLocked) {
@@ -550,7 +554,7 @@ function fireAbility(kind) {
     return;
   }
   if (document.pointerLockElement) {
-    const yaw = cameraPivot.rotation.y;
+    const yaw = currentYaw;
     cameraForward.set(-Math.sin(yaw), 0, -Math.cos(yaw)).normalize();
     const faceAngle = Math.atan2(cameraForward.x, cameraForward.z);
     avatar.mesh.quaternion.setFromAxisAngle(worldUp, faceAngle);
@@ -815,7 +819,7 @@ function updateLocalPlayer(dt) {
   const inputZ = Math.abs(moveInput.x) + Math.abs(moveInput.y) > 0.02 ? moveInput.y : keyboard.y;
 
   // Calculate WASD movement relative to camera's Yaw
-  const yaw = cameraPivot.rotation.y;
+  const yaw = currentYaw;
   cameraForward.set(-Math.sin(yaw), 0, -Math.cos(yaw)).normalize();
   cameraRight.set(Math.cos(yaw), 0, -Math.sin(yaw)).normalize();
 
@@ -962,7 +966,7 @@ function updateLocalPlayer(dt) {
 
   const targetQuaternion = new THREE.Quaternion();
   if (aimInput.lengthSq() > 0.08) {
-    const yaw = cameraPivot.rotation.y;
+    const yaw = currentYaw;
     cameraForward.set(-Math.sin(yaw), 0, -Math.cos(yaw)).normalize();
     cameraRight.set(Math.cos(yaw), 0, -Math.sin(yaw)).normalize();
     const aimX = cameraRight.x * aimInput.x + cameraForward.x * aimInput.y;
@@ -1287,10 +1291,10 @@ function initPointerLockControls() {
       return;
     }
     if (document.pointerLockElement) {
-      const sens = 0.0022 * (window.mouseSensitivity || 1.0);
-      cameraPivot.rotation.y -= event.movementX * sens;
-      cameraPivot.rotation.x -= event.movementY * sens;
-      cameraPivot.rotation.x = Math.max(-0.5, Math.min(0.5, cameraPivot.rotation.x));
+      const sensitivity = 0.0022 * (window.mouseSensitivity || 1.0);
+      targetYaw -= event.movementX * sensitivity;
+      targetPitch -= event.movementY * sensitivity;
+      targetPitch = Math.max(-0.1, Math.min(0.8, targetPitch));
     }
   });
 
@@ -1406,6 +1410,22 @@ function frame(now) {
       av.rig.update(dt);
       followLocalPlayer(av, dt);
     }
+  }
+
+  // Cinematic Mouse Heft (Inertia)
+  currentYaw = THREE.MathUtils.lerp(currentYaw, targetYaw, 0.1);
+  currentPitch = THREE.MathUtils.lerp(currentPitch, targetPitch, 0.1);
+  cameraPivot.rotation.y = currentYaw;
+  cameraPivot.rotation.x = -currentPitch;
+
+  // Base camera offset behind player
+  camera.position.set(0, 3, 8);
+  camera.lookAt(0, 1.5, 0);
+
+  // Hard Y-Clamp: after updating camera position, add failsafe
+  cameraPivot.updateMatrixWorld(true);
+  if (camera.getWorldPosition(new THREE.Vector3()).y < 0.5) {
+    camera.position.y = 0.5;
   }
 
   renderer.render(scene, camera);
