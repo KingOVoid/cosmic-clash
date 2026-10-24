@@ -296,9 +296,9 @@ function spawnOffset(index) {
   const idx = (typeof index === "number" ? index : avatars.size) % count;
   const angle = idx * ((Math.PI * 2) / count);
   return {
-    x: Math.cos(angle) * 6,
-    y: 3, // Safe drop inside 40x40 enclosed room
-    z: Math.sin(angle) * 6
+    x: Math.cos(angle) * 8,
+    y: 2, // Safe drop inside 80x80 enclosed room
+    z: Math.sin(angle) * 8
   };
 }
 
@@ -513,8 +513,8 @@ bindJoystick(document.getElementById("joystick-aim"), aimInput, (vector) => {
 });
 
 function clampToArena(position, yLocked) {
-  // Strict square room constraint (40x40 arena, bounds [-18.5, 18.5])
-  const bound = 18.5;
+  // Strict square room constraint (80x80 arena, bounds [-38.5, 38.5])
+  const bound = 38.5;
   position.x = Math.max(-bound, Math.min(bound, position.x));
   position.z = Math.max(-bound, Math.min(bound, position.z));
   if (yLocked) {
@@ -645,12 +645,19 @@ export function closeCharacterSelect() {
     modal.style.display = "none";
   }
   isCharacterSelectOpen = false;
-  try {
-    renderer.domElement.requestPointerLock();
-  } catch (e) {
+  if (!window.hasPlayerSpawned) {
+    const masterUi = document.getElementById("master-ui");
+    if (masterUi) {
+      masterUi.style.display = "flex";
+    }
+  } else {
     try {
-      document.body.requestPointerLock();
-    } catch (err) {}
+      renderer.domElement.requestPointerLock();
+    } catch (e) {
+      try {
+        document.body.requestPointerLock();
+      } catch (err) {}
+    }
   }
 }
 window.closeCharacterSelect = closeCharacterSelect;
@@ -1338,8 +1345,6 @@ window.addEventListener("keydown", (event) => {
 });
 
 function initPointerLockControls() {
-  const hostBtn = document.getElementById("btn-host");
-  const joinBtn = document.getElementById("btn-join");
   const lockPointer = () => {
     try {
       document.body.requestPointerLock();
@@ -1347,8 +1352,17 @@ function initPointerLockControls() {
       console.warn("Pointer lock error:", e);
     }
   };
-  if (hostBtn) hostBtn.addEventListener("click", lockPointer);
-  if (joinBtn) joinBtn.addEventListener("click", lockPointer);
+
+  // Alt Key Escape listener (unconditional exitPointerLock)
+  window.addEventListener("keydown", (e) => {
+    if (e.key === "Alt") {
+      if (document.exitPointerLock) {
+        try {
+          document.exitPointerLock();
+        } catch (err) {}
+      }
+    }
+  });
 
   // Global click listener to renderer.domElement (the canvas)
   renderer.domElement.addEventListener("click", () => {

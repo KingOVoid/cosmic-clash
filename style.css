@@ -42,7 +42,7 @@ html, body {
   pointer-events: none;
 }
 #lobby > * { pointer-events: auto; }
-.class-card, .start-button, .parchment-action, .scroll-close, .skill-btn, #roomCode, #enter-lobby-overlay, #btn-enter-lobby, #btn-host, #btn-join, #btn-settings, #settings-modal, #settings-modal *, #btn-change-character, #change-character-container {
+.class-card, .start-button, .parchment-action, .scroll-close, .skill-btn, #roomCode, #enter-lobby-overlay, #btn-enter-lobby, #btn-host, #btn-join, #btn-settings, #settings-modal, #settings-modal *, #btn-change-character, #change-character-container, #character-select-ui, #character-select-ui *, .char-card {
   pointer-events: auto !important;
 }
 .cosmic-title-wrap { position: fixed; top: clamp(28px, 7vh, 72px); left: 50%; transform: translateX(-50%); text-align: center; color: #f4e7c5; }
@@ -87,3 +87,183 @@ html, body {
 .parchment-action--join { min-width: 100px; padding-inline: 14px; }
 #server-browser-hint { margin: 24px 0 0; color: #72502e; font: italic 14px "EB Garamond", serif; }
 @media (max-width: 700px) { .cosmic-title-wrap { top: 28px; } .class-wheel { left: 8px; bottom: 20px; transform: scale(.78); transform-origin: bottom left; } .start-button { right: 11%; top: 45%; width: 126px; height: 126px; } .start-button__label { font-size: 23px; } .parchment-scroll { padding-inline: 34px; } }
+
+/* ==========================================
+   CSS-Driven 3D Character Selection Cards
+   ========================================== */
+#character-select-ui {
+  position: fixed;
+  inset: 0;
+  z-index: 90;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  background: rgba(6, 8, 14, 0.85);
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+}
+
+.char-card {
+  width: 250px;
+  height: 350px;
+  border-radius: 15px;
+  transition: transform 0.3s cubic-bezier(0.2, 0.8, 0.2, 1), box-shadow 0.3s ease, border-color 0.3s ease;
+  box-shadow: 0 0 15px rgba(0, 0, 0, 0.5);
+  cursor: pointer;
+  position: relative;
+  overflow: hidden;
+  user-select: none;
+  font-family: "Cinzel", Georgia, serif;
+  display: flex;
+  flex-direction: column;
+}
+
+.char-card:hover {
+  transform: translateY(-20px) scale(1.05);
+}
+
+/* Rogue: glowing #f97316 */
+.char-card-rogue {
+  background: linear-gradient(160deg, #1f1410 0%, #120b08 55%, #2d160c 100%);
+  border: 1.5px solid rgba(249, 115, 22, 0.4);
+}
+.char-card-rogue:hover {
+  border-color: #f97316;
+  box-shadow: 0 0 35px #f97316, 0 14px 28px rgba(0, 0, 0, 0.8);
+}
+
+/* Sorcerer: glowing #a855f7 */
+.char-card-sorcerer {
+  background: linear-gradient(160deg, #1c112b 0%, #10091c 55%, #2a1142 100%);
+  border: 1.5px solid rgba(168, 85, 247, 0.4);
+}
+.char-card-sorcerer:hover {
+  border-color: #a855f7;
+  box-shadow: 0 0 35px #a855f7, 0 14px 28px rgba(0, 0, 0, 0.8);
+}
+
+/* Druid: glowing #22c55e */
+.char-card-druid {
+  background: linear-gradient(160deg, #102116 0%, #09150e 55%, #153520 100%);
+  border: 1.5px solid rgba(34, 197, 94, 0.4);
+}
+.char-card-druid:hover {
+  border-color: #22c55e;
+  box-shadow: 0 0 35px #22c55e, 0 14px 28px rgba(0, 0, 0, 0.8);
+}
+
+/* Paladin: glowing #fbbf24 */
+.char-card-paladin {
+  background: linear-gradient(160deg, #262010 0%, #161208 55%, #3d3013 100%);
+  border: 1.5px solid rgba(251, 191, 36, 0.4);
+}
+.char-card-paladin:hover {
+  border-color: #fbbf24;
+  box-shadow: 0 0 35px #fbbf24, 0 14px 28px rgba(0, 0, 0, 0.8);
+}
+
+.card-inner {
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  padding: 22px 18px;
+  box-sizing: border-box;
+}
+
+.card-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.card-badge {
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  padding: 3px 8px;
+  border-radius: 9999px;
+}
+
+.card-icon {
+  font-size: 22px;
+}
+
+.card-body {
+  margin-top: 6px;
+}
+
+.card-title {
+  margin: 0;
+  font-size: 22px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+}
+
+.card-subtitle {
+  margin: 2px 0 8px 0;
+  font-size: 11px;
+  letter-spacing: 0.15em;
+  text-transform: uppercase;
+  font-style: italic;
+  font-family: "EB Garamond", serif;
+}
+
+.card-desc {
+  margin: 0 0 12px 0;
+  font-size: 12px;
+  line-height: 1.35;
+  color: #c5b8a5;
+  font-family: "EB Garamond", serif;
+}
+
+.card-stats {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+}
+
+.stat-bar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.stat-label {
+  font-size: 9px;
+  font-weight: 700;
+  letter-spacing: 0.1em;
+  color: #a89f91;
+  width: 24px;
+}
+
+.stat-bar .stat-fill {
+  height: 4px;
+  border-radius: 2px;
+}
+
+.card-footer {
+  margin-top: 8px;
+}
+
+.card-btn-label {
+  display: block;
+  text-align: center;
+  padding: 8px 12px;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  background: rgba(0, 0, 0, 0.45);
+  border: 1px solid;
+  border-radius: 8px;
+  transition: all 0.2s ease;
+}
+
+.char-card:hover .card-btn-label {
+  background: rgba(255, 255, 255, 0.15);
+  color: #fff;
+}
+
