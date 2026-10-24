@@ -266,29 +266,57 @@ export class SharedLobby {
     obstacleBoxes.push(new THREE.Box3(new THREE.Vector3(20, 0, -22), new THREE.Vector3(22, wallHeight, 22)));
 
     // ==========================================
-    // 4. CENTRAL ROUNDTABLE & BRAZIER (y = 0)
+    // 4. ATMOSPHERIC LANTERN LIGHTING (4 Corners)
+    // Hanging from ceiling at y: 10 near four corners:
+    // (15, 10, 15), (-15, 10, 15), (15, 10, -15), (-15, 10, -15)
+    // (Central bonfire completely nuked)
     // ==========================================
-    const tableMat = new THREE.MeshStandardMaterial({ color: 0x3d352e, roughness: 0.7, metalness: 0.2 });
-    const tableMesh = new THREE.Mesh(new THREE.CylinderGeometry(4.2, 4.8, 1.0, 32), tableMat);
-    tableMesh.position.set(0, 0.5, 0);
-    tableMesh.castShadow = true;
-    tableMesh.receiveShadow = true;
-    group.add(tableMesh);
-    platformBoxes.push(new THREE.Box3(new THREE.Vector3(-4.5, 0, -4.5), new THREE.Vector3(4.5, 1.0, 4.5)));
+    const lanternPositions = [
+      { x: 15, y: 10, z: 15 },
+      { x: -15, y: 10, z: 15 },
+      { x: 15, y: 10, z: -15 },
+      { x: -15, y: 10, z: -15 }
+    ];
 
-    const brazierMat = new THREE.MeshStandardMaterial({ color: 0x1a1a1a, roughness: 0.8 });
-    const brazier = new THREE.Mesh(new THREE.CylinderGeometry(1.4, 1.1, 0.7, 16), brazierMat);
-    brazier.position.set(0, 1.35, 0);
-    group.add(brazier);
+    const lanternGeom = new THREE.CylinderGeometry(0.2, 0.2, 0.6, 12);
+    const lanternMat = new THREE.MeshStandardMaterial({
+      color: 0x221a0f,
+      emissive: 0xffaa00,
+      emissiveIntensity: 1.8,
+      roughness: 0.3
+    });
+    const chainMat = new THREE.MeshStandardMaterial({
+      color: 0x111111,
+      roughness: 0.8,
+      metalness: 0.9
+    });
+    const chainGeom = new THREE.CylinderGeometry(0.015, 0.015, 1.7, 6);
+    const capGeom = new THREE.CylinderGeometry(0.26, 0.26, 0.06, 12);
 
-    const flameMat = new THREE.MeshBasicMaterial({ color: 0xff7700 });
-    const flame = new THREE.Mesh(new THREE.ConeGeometry(0.6, 1.3, 8), flameMat);
-    flame.position.set(0, 2.0, 0);
-    group.add(flame);
+    const lobbyLanterns = [];
+    for (const pos of lanternPositions) {
+      const chain = new THREE.Mesh(chainGeom, chainMat);
+      chain.position.set(pos.x, 11.15, pos.z);
+      group.add(chain);
 
-    const centerLight = new THREE.PointLight(0xff6600, 2.2, 18);
-    centerLight.position.set(0, 2.6, 0);
-    group.add(centerLight);
+      const lantern = new THREE.Mesh(lanternGeom, lanternMat);
+      lantern.position.set(pos.x, pos.y, pos.z);
+      group.add(lantern);
+
+      const capTop = new THREE.Mesh(capGeom, chainMat);
+      capTop.position.set(pos.x, pos.y + 0.3, pos.z);
+      group.add(capTop);
+
+      const capBottom = new THREE.Mesh(capGeom, chainMat);
+      capBottom.position.set(pos.x, pos.y - 0.3, pos.z);
+      group.add(capBottom);
+
+      const light = new THREE.PointLight(0xffaa00, 1.2, 25);
+      light.position.set(pos.x, pos.y, pos.z);
+      group.add(light);
+
+      lobbyLanterns.push({ lantern, light });
+    }
 
     // ==========================================
     // 5. TOP-LEFT CORNER (x: -13, z: -13): ROGUE
@@ -515,8 +543,10 @@ export class SharedLobby {
           floatingBooksGroup.rotation.y = elapsed * 0.35;
           floatingBooksGroup.position.y = Math.sin(elapsed * 2.0) * 0.2;
         }
-        if (centerLight) {
-          centerLight.intensity = 2.0 + Math.sin(elapsed * 8.0) * 0.25;
+        if (lobbyLanterns) {
+          lobbyLanterns.forEach((l, idx) => {
+            l.light.intensity = 1.2 + Math.sin(elapsed * 5.0 + idx * 1.5) * 0.15;
+          });
         }
       },
       dispose: () => {

@@ -315,9 +315,6 @@ export async function hostMatch(mapName) {
   if (masterUi) {
     masterUi.style.display = "none";
   }
-  try {
-    document.body.requestPointerLock();
-  } catch (e) {}
   if (sessionReady) {
     return;
   }
@@ -336,9 +333,6 @@ export async function joinMatch(roomCode) {
   if (masterUi) {
     masterUi.style.display = "none";
   }
-  try {
-    document.body.requestPointerLock();
-  } catch (e) {}
   if (sessionReady) {
     return;
   }

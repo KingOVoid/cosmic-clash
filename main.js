@@ -158,28 +158,25 @@ window.closeServerBrowser = function () {
   window.isServerBrowserOpen = false;
 };
 
+window.pendingMatch = null;
+window.hasPlayerSpawned = false;
+
 window.hostMatch = async function (mapName) {
   const masterUi = document.getElementById('master-ui');
   if (masterUi) {
     masterUi.style.display = 'none';
   }
-  try {
-    document.body.requestPointerLock();
-  } catch (e) {
-    console.warn("Pointer lock request failed:", e);
+  const charUi = document.getElementById('character-select-ui');
+  if (charUi) {
+    charUi.style.display = 'flex';
   }
-  window.gameState = 'ROUNDTABLE_LOBBY';
-  gameStarted = true;
+  isCharacterSelectOpen = true;
 
   const mapSelectEl = document.getElementById('mapSelect');
   const selectedMap = mapSelectEl ? mapSelectEl.value : (mapName || 'PENDING');
-  if (window.Playroom && typeof window.Playroom.setState === 'function') {
-    window.Playroom.setState('gameState', 'ROUNDTABLE_LOBBY', true);
-    window.Playroom.setState('maxPlayers', 10, true);
-    window.Playroom.setState('teamFormat', 'FFA', true);
-    window.Playroom.setState('selectedMap', selectedMap, true);
-  }
-  return await hostMatch(selectedMap);
+  window.pendingMatch = { type: 'host', mapName: selectedMap };
+  window.gameState = 'ROUNDTABLE_LOBBY';
+  // Pre-lobby flow: do NOT spawn player or lock pointer yet!
 };
 
 window.joinMatch = async function (roomCode) {
@@ -187,14 +184,15 @@ window.joinMatch = async function (roomCode) {
   if (masterUi) {
     masterUi.style.display = 'none';
   }
-  try {
-    document.body.requestPointerLock();
-  } catch (e) {
-    console.warn("Pointer lock request failed:", e);
+  const charUi = document.getElementById('character-select-ui');
+  if (charUi) {
+    charUi.style.display = 'flex';
   }
+  isCharacterSelectOpen = true;
+
+  window.pendingMatch = { type: 'join', roomCode };
   window.gameState = 'ROUNDTABLE_LOBBY';
-  gameStarted = true;
-  return await joinMatch(roomCode);
+  // Pre-lobby flow: do NOT spawn player or lock pointer yet!
 };
 
 window.mouseSensitivity = 1.0;
@@ -387,13 +385,15 @@ function bindJoinHandlers() {
     });
 
     if (!avatars.has(player.id)) {
+      if (isPlayerLocal(player) && !window.hasPlayerSpawned) {
+        return;
+      }
       const avatar = createAvatar(player);
       if (isPlayerLocal(player) && !player.getState("pos")) {
-        const placed = spawnOffset(avatars.size - 1);
-        avatar.mesh.position.set(placed.x, 10, placed.z);
+        avatar.mesh.position.set(0, 2, 10);
         avatar.velocity.set(0, 0, 0);
         avatar.isGrounded = false;
-        player.setState("pos", { x: placed.x, y: 10, z: placed.z }, true);
+        player.setState("pos", { x: 0, y: 2, z: 10 }, true);
       }
       if (isPlayerLocal(player)) {
         setupCameraForLocalPlayer(avatar);
@@ -656,9 +656,51 @@ export function closeCharacterSelect() {
 window.closeCharacterSelect = closeCharacterSelect;
 
 export async function selectCharacterClass(classId) {
-  const local = getLocalPlayer() || { id: "local-hero", getState: () => null, setState: () => {} };
+  // 1. Hide #character-select-ui
+  const modal = document.getElementById("character-select-ui");
+  if (modal) {
+    modal.style.display = "none";
+  }
+  isCharacterSelectOpen = false;
 
+  window.selectedClass = classId;
+
+  // Execute pending match connection if any (Host or Join)
+  if (window.pendingMatch) {
+    const pending = window.pendingMatch;
+    window.pendingMatch = null;
+    if (pending.type === "host") {
+      if (window.Playroom && typeof window.Playroom.setState === "function") {
+        window.Playroom.setState("gameState", "ROUNDTABLE_LOBBY", true);
+        window.Playroom.setState("maxPlayers", 10, true);
+        window.Playroom.setState("teamFormat", "FFA", true);
+        window.Playroom.setState("selectedMap", pending.mapName, true);
+      }
+      try {
+        await hostMatch(pending.mapName);
+      } catch (e) {
+        console.warn("Host match error:", e);
+      }
+    } else if (pending.type === "join") {
+      try {
+        await joinMatch(pending.roomCode);
+      } catch (e) {
+        console.warn("Join match error:", e);
+      }
+    }
+  }
+
+  // 2. Set the player's class in Playroom: Playroom.myPlayer().setState('class', selectedClass);
+  if (window.Playroom && typeof window.Playroom.myPlayer === "function") {
+    const myP = window.Playroom.myPlayer();
+    if (myP && typeof myP.setState === "function") {
+      myP.setState("class", classId, true);
+      myP.setState("classId", classId, true);
+    }
+  }
+  const local = getLocalPlayer() || (window.Playroom && typeof window.Playroom.myPlayer === "function" && window.Playroom.myPlayer()) || { id: "local-hero", getState: () => null, setState: () => {} };
   if (typeof local.setState === "function") {
+    local.setState("class", classId, true);
     local.setState("classId", classId, true);
     const fighter = getAllFighters().get(local.id);
     if (fighter) {
@@ -666,12 +708,38 @@ export async function selectCharacterClass(classId) {
       local.setState("fighter", serializeFighter(fighter), true);
     }
   }
-  if (typeof window !== "undefined") {
-    window.selectedClass = classId;
+
+  // 3. Call document.body.requestPointerLock()
+  try {
+    document.body.requestPointerLock();
+  } catch (e) {
+    console.warn("Pointer lock request failed:", e);
   }
 
-  await selectClass(classId);
-  closeCharacterSelect();
+  // 4. Instantiate the correct 3D character mesh
+  if (avatars.has(local.id)) {
+    removeAvatar(local);
+  }
+  const avatar = createAvatar(local);
+  try {
+    await AssetManager.loadCharacter(classId);
+  } catch (e) {}
+
+  // 5. Spawn the player at offset coordinate: x: 0, y: 2, z: 10 (to avoid center collisions)
+  avatar.mesh.position.set(0, 2, 10);
+  avatar.targetPos.set(0, 2, 10);
+  avatar.velocity.set(0, 0, 0);
+  if (typeof local.setState === "function") {
+    local.setState("pos", { x: 0, y: 2, z: 10 }, true);
+  }
+
+  // Camera Pivot Fix: strictly instantiate cameraPivot as a child of playerMesh
+  setupCameraForLocalPlayer(avatar);
+
+  window.hasPlayerSpawned = true;
+  gameStarted = true;
+  window.gameState = "ROUNDTABLE_LOBBY";
+  verifySceneLighting(scene);
 }
 window.selectCharacterClass = selectCharacterClass;
 
@@ -682,19 +750,30 @@ window.openCardSelect = function () {
 
 export function setupCameraForLocalPlayer(avatar) {
   if (!avatar || !avatar.mesh) return;
+
+  // Camera Pivot Fix: Ensure cameraPivot is strictly instantiated as a child of playerMesh
+  if (cameraPivot.parent !== avatar.mesh) {
+    if (cameraPivot.parent) {
+      cameraPivot.parent.remove(cameraPivot);
+    }
+    avatar.mesh.add(cameraPivot);
+  }
+  cameraPivot.position.set(0, 0, 0);
+
   if (camera.parent !== cameraPivot) {
     cameraPivot.add(camera);
-    camera.position.set(0, 3, 8);
-    camera.lookAt(0, 1.5, 0);
   }
-  cameraPivot.position.copy(avatar.mesh.position);
+  camera.position.set(0, 3, 8);
+  camera.lookAt(0, 1.5, 0);
 }
 
 function followLocalPlayer(avatar, dt) {
   if (!avatar || !avatar.mesh) {
     return;
   }
-  cameraPivot.position.copy(avatar.mesh.position);
+  if (cameraPivot.parent !== avatar.mesh) {
+    setupCameraForLocalPlayer(avatar);
+  }
   sun.target.position.copy(avatar.mesh.position);
 }
 
@@ -1415,17 +1494,30 @@ function frame(now) {
   // Cinematic Mouse Heft (Inertia)
   currentYaw = THREE.MathUtils.lerp(currentYaw, targetYaw, 0.1);
   currentPitch = THREE.MathUtils.lerp(currentPitch, targetPitch, 0.1);
-  cameraPivot.rotation.y = currentYaw;
-  cameraPivot.rotation.x = -currentPitch;
 
-  // Base camera offset behind player
-  camera.position.set(0, 3, 8);
-  camera.lookAt(0, 1.5, 0);
+  const local = getLocalPlayer() || (window.Playroom && typeof window.Playroom.myPlayer === "function" && window.Playroom.myPlayer()) || { id: "local-hero" };
+  const avatar = avatars.get(local.id);
+  if (avatar && avatar.mesh) {
+    if (cameraPivot.parent !== avatar.mesh) {
+      setupCameraForLocalPlayer(avatar);
+    }
+    // When cameraPivot is child of avatar.mesh:
+    cameraPivot.rotation.y = currentYaw - avatar.mesh.rotation.y;
+    cameraPivot.rotation.x = -currentPitch;
 
-  // Hard Y-Clamp: after updating camera position, add failsafe
-  cameraPivot.updateMatrixWorld(true);
-  if (camera.getWorldPosition(new THREE.Vector3()).y < 0.5) {
-    camera.position.y = 0.5;
+    // Base camera offset behind player
+    camera.position.set(0, 3, 8);
+    camera.lookAt(0, 1.5, 0);
+
+    // Hard Y-Clamp: after updating camera position, add failsafe
+    cameraPivot.updateMatrixWorld(true);
+    if (camera.getWorldPosition(new THREE.Vector3()).y < 0.5) {
+      camera.position.y = 0.5;
+    }
+  } else {
+    // Before player spawn: cinematic room view
+    camera.position.set(0, 4, 14);
+    camera.lookAt(0, 2, 0);
   }
 
   renderer.render(scene, camera);
@@ -1453,6 +1545,9 @@ window.addEventListener("cosmic-clash-start", () => {
     mobile.hidden = false;
   }
   getConnectedPlayers().forEach((player) => {
+    if (isPlayerLocal(player) && !window.hasPlayerSpawned) {
+      return;
+    }
     let avatar = avatars.get(player.id);
     if (!avatar) {
       avatar = createAvatar(player);
@@ -1487,13 +1582,6 @@ async function boot() {
   bindJoinHandlers();
   initLobby();
   requestAnimationFrame(frame);
-
-  // Pre-spawn local hero avatar immediately in SharedLobby so 3D world is populated right away
-  const local = getLocalPlayer() || { id: "local-hero", getState: () => null, setState: () => {} };
-  if (!avatars.has(local.id)) {
-    const av = createAvatar(local);
-    setupCameraForLocalPlayer(av);
-  }
 
   await AssetManager.loadModels();
   assetsReady = true;
