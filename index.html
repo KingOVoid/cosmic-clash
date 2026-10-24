@@ -85,11 +85,53 @@
     </div>
   </div>
 
-  <!-- Change Character trigger button (appears when gameState === 'ROUNDTABLE_LOBBY') -->
-  <div id="change-character-container" class="fixed top-5 right-5 z-40 pointer-events-auto" style="display: none;">
-    <button id="btn-change-character" type="button" class="px-5 py-2.5 bg-gradient-to-r from-amber-800 via-amber-600 to-amber-800 hover:from-amber-700 hover:to-amber-500 text-amber-100 font-serif font-bold text-sm tracking-wider uppercase rounded-xl border border-amber-400/60 shadow-[0_4px_16px_rgba(0,0,0,0.6)] hover:shadow-[0_0_20px_rgba(245,158,11,0.5)] transition-all transform hover:scale-105 active:scale-95 cursor-pointer pointer-events-auto" onclick="window.openCardSelect()">
-      Change Character
-    </button>
+  <!-- Hidden Character Selection Modal (Triggered by 'C' hotkey) -->
+  <div id="character-select-ui" class="fixed inset-0 z-50 flex flex-col items-center justify-center bg-black/80 backdrop-blur-md pointer-events-auto" style="display: none;">
+    <div class="relative w-full max-w-xl p-8 mx-4 rounded-2xl bg-stone-900/95 border-2 border-amber-600/70 shadow-2xl text-center pointer-events-auto">
+      <button type="button" class="absolute top-4 right-4 text-stone-400 hover:text-amber-300 text-2xl font-bold leading-none cursor-pointer" onclick="window.closeCharacterSelect()">&times;</button>
+      <p class="text-amber-400 font-serif text-xs tracking-[0.3em] uppercase mb-1">Select Champion</p>
+      <h2 class="text-3xl font-bold font-serif text-amber-200 tracking-wide mb-6">Choose Your Class</h2>
+      
+      <div class="grid grid-cols-2 gap-4 mb-6">
+        <!-- Rogue -->
+        <button type="button" class="p-4 rounded-xl border border-purple-500/40 bg-gradient-to-br from-stone-900 via-purple-950/40 to-stone-900 hover:border-purple-400 hover:from-purple-900/60 hover:to-stone-800 text-left transition-all transform hover:scale-[1.03] active:scale-[0.98] shadow-lg cursor-pointer pointer-events-auto" onclick="window.selectCharacterClass('rogue')">
+          <div class="flex items-center gap-3 mb-1">
+            <span class="w-3 h-3 rounded-full bg-purple-500 shadow-[0_0_8px_#a855f7]"></span>
+            <span class="font-serif font-bold text-lg text-purple-200">Rogue</span>
+          </div>
+          <p class="font-serif text-xs text-stone-400 italic">Shadowstep · Dagger strikes</p>
+        </button>
+
+        <!-- Sorcerer -->
+        <button type="button" class="p-4 rounded-xl border border-blue-500/40 bg-gradient-to-br from-stone-900 via-blue-950/40 to-stone-900 hover:border-blue-400 hover:from-blue-900/60 hover:to-stone-800 text-left transition-all transform hover:scale-[1.03] active:scale-[0.98] shadow-lg cursor-pointer pointer-events-auto" onclick="window.selectCharacterClass('sorcerer')">
+          <div class="flex items-center gap-3 mb-1">
+            <span class="w-3 h-3 rounded-full bg-blue-500 shadow-[0_0_8px_#3b82f6]"></span>
+            <span class="font-serif font-bold text-lg text-blue-200">Sorcerer</span>
+          </div>
+          <p class="font-serif text-xs text-stone-400 italic">Arcane Fire · Teleportation</p>
+        </button>
+
+        <!-- Druid -->
+        <button type="button" class="p-4 rounded-xl border border-emerald-500/40 bg-gradient-to-br from-stone-900 via-emerald-950/40 to-stone-900 hover:border-emerald-400 hover:from-emerald-900/60 hover:to-stone-800 text-left transition-all transform hover:scale-[1.03] active:scale-[0.98] shadow-lg cursor-pointer pointer-events-auto" onclick="window.selectCharacterClass('druid')">
+          <div class="flex items-center gap-3 mb-1">
+            <span class="w-3 h-3 rounded-full bg-emerald-500 shadow-[0_0_8px_#10b981]"></span>
+            <span class="font-serif font-bold text-lg text-emerald-200">Druid</span>
+          </div>
+          <p class="font-serif text-xs text-stone-400 italic">Wild Earth · Regeneration</p>
+        </button>
+
+        <!-- Paladin -->
+        <button type="button" class="p-4 rounded-xl border border-amber-500/40 bg-gradient-to-br from-stone-900 via-amber-950/40 to-stone-900 hover:border-amber-400 hover:from-amber-900/60 hover:to-stone-800 text-left transition-all transform hover:scale-[1.03] active:scale-[0.98] shadow-lg cursor-pointer pointer-events-auto" onclick="window.selectCharacterClass('paladin')">
+          <div class="flex items-center gap-3 mb-1">
+            <span class="w-3 h-3 rounded-full bg-amber-400 shadow-[0_0_8px_#fbbf24]"></span>
+            <span class="font-serif font-bold text-lg text-amber-200">Paladin</span>
+          </div>
+          <p class="font-serif text-xs text-stone-400 italic">Shield Barrier · Vanguard Charge</p>
+        </button>
+      </div>
+
+      <p class="text-xs text-stone-400 font-serif">Press <kbd class="px-2 py-0.5 bg-stone-800 rounded border border-stone-600 text-amber-300 font-mono">[C]</kbd> or <kbd class="px-2 py-0.5 bg-stone-800 rounded border border-stone-600 text-amber-300 font-mono">[ESC]</kbd> to close</p>
+    </div>
   </div>
 
   <div id="hud" hidden><div class="hud-chip" id="hud-class"></div><div class="hp-wrap"><div id="hp-fill"></div><span id="hp-text">100</span></div><div class="hud-chip" id="hud-state"></div></div>

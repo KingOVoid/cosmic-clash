@@ -73,8 +73,15 @@ scene.background = new THREE.Color(0x181a20);
 scene.fog = new THREE.FogExp2(0x181a20, 0.003);
 
 const camera = new THREE.PerspectiveCamera(55, window.innerWidth / window.innerHeight, 0.1, 200);
-camera.position.set(0, 15, 30);
-camera.lookAt(0, 0, 0);
+const cameraPivot = new THREE.Object3D();
+cameraPivot.name = "cameraPivot";
+cameraPivot.rotation.order = "YXZ";
+scene.add(cameraPivot);
+
+// Attach camera to cameraPivot at offset (x: 0, y: 3, z: 8)
+cameraPivot.add(camera);
+camera.position.set(0, 3, 8);
+camera.lookAt(0, 1.5, 0);
 
 const ambient = new THREE.AmbientLight(0xffffff, 1.0);
 scene.add(ambient);
@@ -493,22 +500,19 @@ function bindJoystick(root, vector, onAim) {
 bindJoystick(document.getElementById("joystick-move"), moveInput, null);
 bindJoystick(document.getElementById("joystick-aim"), aimInput, (vector) => {
   if (Math.abs(vector.x) > 0.08) {
-    cameraYaw -= vector.x * 0.065;
+    cameraPivot.rotation.y -= vector.x * 0.065;
   }
   if (Math.abs(vector.y) > 0.08) {
-    cameraPitch += vector.y * 0.04;
-    cameraPitch = Math.max(-0.45, Math.min(1.15, cameraPitch));
+    cameraPivot.rotation.x -= vector.y * 0.04;
+    cameraPivot.rotation.x = Math.max(-0.5, Math.min(0.5, cameraPivot.rotation.x));
   }
 });
 
 function clampToArena(position, yLocked) {
-  // Circular Roundtable room constraint (radius 38.5)
-  const dist = Math.hypot(position.x, position.z);
-  const maxRadius = 38.5;
-  if (dist > maxRadius) {
-    position.x = (position.x / dist) * maxRadius;
-    position.z = (position.z / dist) * maxRadius;
-  }
+  // Strict square room constraint (60x60 arena, bounds [-28.5, 28.5])
+  const bound = 28.5;
+  position.x = Math.max(-bound, Math.min(bound, position.x));
+  position.z = Math.max(-bound, Math.min(bound, position.z));
   if (yLocked) {
     position.y = 0;
   }
@@ -546,11 +550,11 @@ function fireAbility(kind) {
     return;
   }
   if (document.pointerLockElement) {
-    camera.getWorldDirection(cameraForward);
-    cameraForward.y = 0;
-    if (cameraForward.lengthSq() > 0.0001) {
-      avatar.mesh.rotation.y = Math.atan2(cameraForward.x, cameraForward.z);
-    }
+    const yaw = cameraPivot.rotation.y;
+    cameraForward.set(-Math.sin(yaw), 0, -Math.cos(yaw)).normalize();
+    const faceAngle = Math.atan2(cameraForward.x, cameraForward.z);
+    avatar.mesh.quaternion.setFromAxisAngle(worldUp, faceAngle);
+    avatar.mesh.rotation.y = faceAngle;
   }
   const origin = {
     x: avatar.mesh.position.x,
@@ -616,347 +620,77 @@ function lerpAngle(from, to, t) {
   return from + diff * t;
 }
 
-let cameraPivot = null;
+export let isCharacterSelectOpen = false;
 
-export class CardSelector {
-  static isOpen = false;
-  static isMovementPaused = false;
-  static cards = [];
-  static raycaster = new THREE.Raycaster();
-  static mouse = new THREE.Vector2();
-  static loader = new GLTFLoader();
-  static cardModelsCache = new Map();
-  static cardGroup = null;
-
-  static async preload() {
-    const urls = [
-      "./assets/environment/0_Card_Front.gltf",
-      "./assets/environment/1_Fireball.gltf",
-      "./assets/environment/25_Element_Earth.gltf",
-      "./assets/environment/29_Block.gltf",
-      "./assets/environment/5_Steal.gltf"
-    ];
-    for (const url of urls) {
-      try {
-        const gltf = await CardSelector.loader.loadAsync(url);
-        if (gltf && gltf.scene) {
-          CardSelector.cardModelsCache.set(url, gltf.scene);
-        }
-      } catch (e) {
-        console.warn("Preload card model failed:", url, e);
-      }
-    }
-  }
-
-  static async open() {
-    if (CardSelector.isOpen) return;
-    CardSelector.isOpen = true;
-    CardSelector.isMovementPaused = true;
-
-    // Release pointer lock so mouse is free to hover and click cards
-    if (document.exitPointerLock) {
-      try {
-        document.exitPointerLock();
-      } catch (e) {}
-    }
-
-    if (CardSelector.cardGroup) {
-      camera.remove(CardSelector.cardGroup);
-    }
-    CardSelector.cardGroup = new THREE.Group();
-    CardSelector.cardGroup.name = "card-selection-hand";
-    camera.add(CardSelector.cardGroup);
-
-    CardSelector.cards = [];
-
-    const cardDefs = [
-      {
-        classId: "sorcerer",
-        label: "Sorcerer",
-        sub: "Arcane Fire",
-        modelUrl: "./assets/environment/1_Fireball.gltf",
-        glowColor: 0x3a86ff,
-        x: -3,
-        zRot: -0.12
-      },
-      {
-        classId: "druid",
-        label: "Druid",
-        sub: "Wild Earth",
-        modelUrl: "./assets/environment/25_Element_Earth.gltf",
-        glowColor: 0x2d6a4f,
-        x: -1,
-        zRot: -0.04
-      },
-      {
-        classId: "paladin",
-        label: "Paladin",
-        sub: "Shield & Sword",
-        modelUrl: "./assets/environment/29_Block.gltf",
-        glowColor: 0xffd60a,
-        x: 1,
-        zRot: 0.04
-      },
-      {
-        classId: "rogue",
-        label: "Rogue",
-        sub: "Shadow Dagger",
-        modelUrl: "./assets/environment/5_Steal.gltf",
-        glowColor: 0x9333ea,
-        x: 3,
-        zRot: 0.12
-      }
-    ];
-
-    for (let i = 0; i < cardDefs.length; i++) {
-      const def = cardDefs[i];
-      const card = new THREE.Group();
-      card.name = `card-${def.classId}`;
-      card.userData.classId = def.classId;
-      card.userData.targetX = def.x;
-      card.userData.targetY = -1.0;
-      card.userData.targetRotZ = def.zRot;
-      card.userData.baseRotZ = def.zRot;
-      card.userData.velocityY = 0;
-      card.userData.isHovered = false;
-
-      // Position as child of camera
-      // Spawn at y = -5, fanned out at x = -3, -1, 1, 3
-      card.position.set(def.x, -5.0, -4.5);
-      card.rotation.set(0, 0, def.zRot);
-      card.scale.set(0.68, 0.68, 0.68);
-
-      // Load card frame
-      let frontScene = CardSelector.cardModelsCache.get("./assets/environment/0_Card_Front.gltf");
-      if (!frontScene) {
-        try {
-          const gltf = await CardSelector.loader.loadAsync("./assets/environment/0_Card_Front.gltf");
-          frontScene = gltf.scene;
-          CardSelector.cardModelsCache.set("./assets/environment/0_Card_Front.gltf", frontScene);
-        } catch (e) {}
-      }
-      if (frontScene) {
-        const frontClone = frontScene.clone(true);
-        frontClone.userData.classId = def.classId;
-        frontClone.traverse((n) => {
-          if (n.isMesh) {
-            n.userData.classId = def.classId;
-            n.material = n.material.clone();
-          }
-        });
-        card.add(frontClone);
-      }
-
-      // Load card illustration (Quaternius 3D Cards Kit)
-      let illustScene = CardSelector.cardModelsCache.get(def.modelUrl);
-      if (!illustScene) {
-        try {
-          const gltf = await CardSelector.loader.loadAsync(def.modelUrl);
-          illustScene = gltf.scene;
-          CardSelector.cardModelsCache.set(def.modelUrl, illustScene);
-        } catch (e) {}
-      }
-      if (illustScene) {
-        const illustClone = illustScene.clone(true);
-        illustClone.userData.classId = def.classId;
-        illustClone.traverse((n) => {
-          if (n.isMesh) {
-            n.userData.classId = def.classId;
-            n.material = n.material.clone();
-          }
-        });
-        card.add(illustClone);
-      }
-
-      // Class name text banner
-      const canvasText = document.createElement("canvas");
-      canvasText.width = 256;
-      canvasText.height = 80;
-      const ctx = canvasText.getContext("2d");
-      ctx.fillStyle = "rgba(18, 16, 24, 0.9)";
-      ctx.roundRect(4, 4, 248, 72, 12);
-      ctx.fill();
-      ctx.lineWidth = 4;
-      ctx.strokeStyle = `#${def.glowColor.toString(16).padStart(6, "0")}`;
-      ctx.stroke();
-      ctx.fillStyle = "#fef08a";
-      ctx.font = "bold 28px 'Cinzel', serif";
-      ctx.textAlign = "center";
-      ctx.fillText(def.label.toUpperCase(), 128, 40);
-      ctx.fillStyle = "#d4af37";
-      ctx.font = "italic 16px 'EB Garamond', serif";
-      ctx.fillText(def.sub, 128, 62);
-
-      const labelTex = new THREE.CanvasTexture(canvasText);
-      const labelMat = new THREE.MeshBasicMaterial({ map: labelTex, transparent: true });
-      const labelMesh = new THREE.Mesh(new THREE.PlaneGeometry(1.8, 0.56), labelMat);
-      labelMesh.position.set(0, -1.35, 0.1);
-      labelMesh.userData.classId = def.classId;
-      card.add(labelMesh);
-
-      // Hit area plane for raycaster precision
-      const hitBackdrop = new THREE.Mesh(
-        new THREE.PlaneGeometry(2.4, 3.4),
-        new THREE.MeshBasicMaterial({ transparent: true, opacity: 0.0, depthWrite: false })
-      );
-      hitBackdrop.position.set(0, 0, 0.05);
-      hitBackdrop.userData.classId = def.classId;
-      card.add(hitBackdrop);
-
-      CardSelector.cardGroup.add(card);
-      CardSelector.cards.push(card);
-    }
-  }
-
-  static update(dt) {
-    if (!CardSelector.isOpen || !CardSelector.cards || CardSelector.cards.length === 0) return;
-    const k = 42.0;
-    const damping = 9.0;
-
-    for (const card of CardSelector.cards) {
-      const targetY = card.userData.isHovered ? -0.65 : card.userData.targetY;
-      const targetScale = card.userData.isHovered ? 0.76 : 0.68;
-      const targetRotZ = card.userData.isHovered ? 0 : card.userData.baseRotZ;
-
-      const dy = targetY - card.position.y;
-      card.userData.velocityY += dy * k * dt;
-      card.userData.velocityY *= Math.exp(-damping * dt);
-      card.position.y += card.userData.velocityY * dt;
-
-      card.rotation.z = THREE.MathUtils.lerp(card.rotation.z, targetRotZ, Math.min(1, dt * 12));
-      card.scale.lerp(new THREE.Vector3(targetScale, targetScale, targetScale), Math.min(1, dt * 14));
-    }
-  }
-
-  static onMouseMove(event) {
-    if (!CardSelector.isOpen || CardSelector.cards.length === 0) return;
-    CardSelector.mouse.x = (event.clientX / window.innerWidth) * 2 - 1;
-    CardSelector.mouse.y = -(event.clientY / window.innerHeight) * 2 + 1;
-    CardSelector.raycaster.setFromCamera(CardSelector.mouse, camera);
-
-    const intersects = CardSelector.raycaster.intersectObjects(CardSelector.cards, true);
-    let hoveredClass = null;
-    if (intersects.length > 0) {
-      let node = intersects[0].object;
-      while (node && !node.userData.classId && node.parent) {
-        node = node.parent;
-      }
-      if (node && node.userData.classId) {
-        hoveredClass = node.userData.classId;
-      }
-    }
-
-    for (const card of CardSelector.cards) {
-      card.userData.isHovered = Boolean(hoveredClass && card.userData.classId === hoveredClass);
-    }
-  }
-
-  static async onClick(event) {
-    if (!CardSelector.isOpen || CardSelector.cards.length === 0) return;
-    CardSelector.mouse.x = (event.clientX / window.innerWidth) * 2 - 1;
-    CardSelector.mouse.y = -(event.clientY / window.innerHeight) * 2 + 1;
-    CardSelector.raycaster.setFromCamera(CardSelector.mouse, camera);
-
-    const intersects = CardSelector.raycaster.intersectObjects(CardSelector.cards, true);
-    if (intersects.length === 0) return;
-
-    let node = intersects[0].object;
-    while (node && !node.userData.classId && node.parent) {
-      node = node.parent;
-    }
-    const chosenClass = node && node.userData.classId;
-    if (chosenClass) {
-      await CardSelector.selectClass(chosenClass);
-    }
-  }
-
-  static async selectClass(classId) {
-    const local = getLocalPlayer() || { id: "local-hero", getState: () => null, setState: () => {} };
-
-    // 1. Update Playroom playerState
-    if (typeof local.setState === "function") {
-      local.setState("classId", classId, true);
-      const fighter = getAllFighters().get(local.id);
-      if (fighter) {
-        fighter.classId = classId;
-        local.setState("fighter", serializeFighter(fighter), true);
-      }
-    }
-    if (typeof window !== "undefined") {
-      window.selectedClass = classId;
-    }
-
-    // 2. Swap local 3D mesh
-    await selectClass(classId);
-
-    // 3. Destroy card objects
-    CardSelector.close();
-
-    // 4. Unpause movement & re-capture pointer lock
-    CardSelector.isMovementPaused = false;
+export function openCharacterSelect() {
+  const modal = document.getElementById("character-select-ui");
+  if (!modal) return;
+  isCharacterSelectOpen = true;
+  modal.style.display = "flex";
+  if (document.exitPointerLock) {
     try {
-      document.body.requestPointerLock();
+      document.exitPointerLock();
     } catch (e) {}
   }
+}
+window.openCharacterSelect = openCharacterSelect;
 
-  static close() {
-    if (CardSelector.cardGroup) {
-      camera.remove(CardSelector.cardGroup);
-      CardSelector.cardGroup.traverse((child) => {
-        if (child.isMesh) {
-          if (child.geometry) child.geometry.dispose();
-          if (child.material) {
-            if (Array.isArray(child.material)) {
-              child.material.forEach((m) => m.dispose());
-            } else {
-              child.material.dispose();
-            }
-          }
-        }
-      });
-      CardSelector.cardGroup = null;
-    }
-    CardSelector.cards = [];
-    CardSelector.isOpen = false;
-    CardSelector.isMovementPaused = false;
+export function closeCharacterSelect() {
+  const modal = document.getElementById("character-select-ui");
+  if (modal) {
+    modal.style.display = "none";
+  }
+  isCharacterSelectOpen = false;
+  try {
+    renderer.domElement.requestPointerLock();
+  } catch (e) {
+    try {
+      document.body.requestPointerLock();
+    } catch (err) {}
   }
 }
+window.closeCharacterSelect = closeCharacterSelect;
 
+export async function selectCharacterClass(classId) {
+  const local = getLocalPlayer() || { id: "local-hero", getState: () => null, setState: () => {} };
+
+  if (typeof local.setState === "function") {
+    local.setState("classId", classId, true);
+    const fighter = getAllFighters().get(local.id);
+    if (fighter) {
+      fighter.classId = classId;
+      local.setState("fighter", serializeFighter(fighter), true);
+    }
+  }
+  if (typeof window !== "undefined") {
+    window.selectedClass = classId;
+  }
+
+  await selectClass(classId);
+  closeCharacterSelect();
+}
+window.selectCharacterClass = selectCharacterClass;
+
+// Legacy alias for 3D card selector
 window.openCardSelect = function () {
-  CardSelector.open();
+  openCharacterSelect();
 };
 
 export function setupCameraForLocalPlayer(avatar) {
   if (!avatar || !avatar.mesh) return;
-  if (cameraPivot && cameraPivot.parent === avatar.mesh) return;
-
-  if (camera.parent) {
-    camera.parent.remove(camera);
+  if (camera.parent !== cameraPivot) {
+    cameraPivot.add(camera);
+    camera.position.set(0, 3, 8);
+    camera.lookAt(0, 1.5, 0);
   }
-  if (cameraPivot && cameraPivot.parent) {
-    cameraPivot.parent.remove(cameraPivot);
-  }
-
-  cameraPivot = new THREE.Object3D();
-  cameraPivot.name = "camera-pivot";
-  cameraPivot.position.set(0, 0, 0);
-  avatar.mesh.add(cameraPivot);
-
-  // Once player mesh is added to the scene, parent camera directly to pivot attached to player mesh, offset by (x: 0, y: 3, z: 6)
-  camera.position.set(0, 3, 6);
-  camera.lookAt(0, 1.5, 0);
-  cameraPivot.add(camera);
+  cameraPivot.position.copy(avatar.mesh.position);
 }
 
 function followLocalPlayer(avatar, dt) {
-  if (!avatar) {
+  if (!avatar || !avatar.mesh) {
     return;
   }
-  setupCameraForLocalPlayer(avatar);
-  if (cameraPivot) {
-    cameraPivot.rotation.y = cameraYaw - avatar.mesh.rotation.y;
-    cameraPivot.rotation.x = cameraPitch;
-  }
+  cameraPivot.position.copy(avatar.mesh.position);
   sun.target.position.copy(avatar.mesh.position);
 }
 
@@ -1039,7 +773,7 @@ function updateLocalPlayer(dt) {
     return null;
   }
 
-  if (CardSelector.isOpen || CardSelector.isMovementPaused) {
+  if (isCharacterSelectOpen) {
     avatar.velocity.set(0, 0, 0);
     fighter.anim = "Idle";
     applyVisualState(avatar, fighter);
@@ -1080,14 +814,10 @@ function updateLocalPlayer(dt) {
   const inputX = Math.abs(moveInput.x) + Math.abs(moveInput.y) > 0.02 ? moveInput.x : keyboard.x;
   const inputZ = Math.abs(moveInput.x) + Math.abs(moveInput.y) > 0.02 ? moveInput.y : keyboard.y;
 
-  camera.getWorldDirection(cameraForward);
-  cameraForward.y = 0;
-  if (cameraForward.lengthSq() < 0.0001) {
-    cameraForward.set(0, 0, -1);
-  } else {
-    cameraForward.normalize();
-  }
-  cameraRight.crossVectors(cameraForward, worldUp).normalize();
+  // Calculate WASD movement relative to camera's Yaw
+  const yaw = cameraPivot.rotation.y;
+  cameraForward.set(-Math.sin(yaw), 0, -Math.cos(yaw)).normalize();
+  cameraRight.set(Math.cos(yaw), 0, -Math.sin(yaw)).normalize();
 
   desiredMove
     .set(0, 0, 0)
@@ -1230,17 +960,24 @@ function updateLocalPlayer(dt) {
     }
   }
 
+  const targetQuaternion = new THREE.Quaternion();
   if (aimInput.lengthSq() > 0.08) {
-    camera.getWorldDirection(cameraForward);
-    cameraForward.y = 0;
-    cameraForward.normalize();
-    cameraRight.crossVectors(cameraForward, worldUp).normalize();
+    const yaw = cameraPivot.rotation.y;
+    cameraForward.set(-Math.sin(yaw), 0, -Math.cos(yaw)).normalize();
+    cameraRight.set(Math.cos(yaw), 0, -Math.sin(yaw)).normalize();
     const aimX = cameraRight.x * aimInput.x + cameraForward.x * aimInput.y;
     const aimZ = cameraRight.z * aimInput.x + cameraForward.z * aimInput.y;
-    avatar.mesh.rotation.y = Math.atan2(aimX, aimZ);
+    const aimAngle = Math.atan2(aimX, aimZ);
+    targetQuaternion.setFromAxisAngle(worldUp, aimAngle);
+    avatar.mesh.quaternion.slerp(targetQuaternion, 0.25);
+    avatar.mesh.rotation.y = aimAngle;
   } else if (desiredMove.lengthSq() > 0.0001 && fighter.sidestepUntil <= 0) {
-    // Omnidirectional WASD: avatar faces the direction of desired movement (allows walking towards camera)
-    avatar.mesh.rotation.y = Math.atan2(desiredMove.x, desiredMove.z);
+    // Omnidirectional WASD: smooth model rotation (no snapping)
+    const moveAngle = Math.atan2(desiredMove.x, desiredMove.z);
+    targetQuaternion.setFromAxisAngle(worldUp, moveAngle);
+    avatar.mesh.quaternion.slerp(targetQuaternion, 0.15);
+    const euler = new THREE.Euler().setFromQuaternion(avatar.mesh.quaternion, "YXZ");
+    avatar.mesh.rotation.y = euler.y;
   }
 
   clampToArena(avatar.mesh.position, false);
@@ -1530,9 +1267,8 @@ function initPointerLockControls() {
   if (joinBtn) joinBtn.addEventListener("click", lockPointer);
 
   // Global click listener to renderer.domElement (the canvas)
-  renderer.domElement.addEventListener("click", (event) => {
-    if (CardSelector.isOpen) {
-      CardSelector.onClick(event);
+  renderer.domElement.addEventListener("click", () => {
+    if (isCharacterSelectOpen) {
       return;
     }
     const state = window.gameState;
@@ -1541,27 +1277,37 @@ function initPointerLockControls() {
     if (isMenuVisible) {
       return;
     }
-    if ((state === "ROUNDTABLE_LOBBY" || state === "PLAYING" || state === "IN_GAME") && !document.pointerLockElement) {
+    if ((state === "ROUNDTABLE_LOBBY" || state === "PLAYING" || state === "IN_GAME" || gameStarted) && !document.pointerLockElement) {
       lockPointer();
     }
   });
 
   window.addEventListener("mousemove", (event) => {
-    if (CardSelector.isOpen) {
-      CardSelector.onMouseMove(event);
+    if (isCharacterSelectOpen) {
       return;
     }
     if (document.pointerLockElement) {
-      const sens = 0.0024 * (window.mouseSensitivity || 1.0);
-      cameraYaw -= event.movementX * sens;
-      cameraPitch -= event.movementY * sens;
-      cameraPitch = Math.max(-0.45, Math.min(1.15, cameraPitch));
+      const sens = 0.0022 * (window.mouseSensitivity || 1.0);
+      cameraPivot.rotation.y -= event.movementX * sens;
+      cameraPivot.rotation.x -= event.movementY * sens;
+      cameraPivot.rotation.x = Math.max(-0.5, Math.min(0.5, cameraPivot.rotation.x));
     }
   });
 
   window.addEventListener("keydown", (event) => {
-    if (event.code === "Escape" && CardSelector.isOpen) {
-      CardSelector.close();
+    if (event.code === "KeyC") {
+      if (isCharacterSelectOpen) {
+        closeCharacterSelect();
+      } else {
+        const isLobbyOrActive = window.gameState === "ROUNDTABLE_LOBBY" || window.gameState === "PLAYING" || window.gameState === "IN_GAME" || gameStarted;
+        if (isLobbyOrActive) {
+          openCharacterSelect();
+        }
+      }
+    } else if (event.code === "Escape") {
+      if (isCharacterSelectOpen) {
+        closeCharacterSelect();
+      }
     }
   });
 }
@@ -1620,14 +1366,12 @@ function frame(now) {
     currentMapData.update(dt, now / 1000);
   }
 
-  CardSelector.update(dt);
-
   // Update Change Character button visibility (only in ROUNDTABLE_LOBBY)
   const changeCharEl = document.getElementById("change-character-container");
   if (changeCharEl) {
     const masterUi = document.getElementById("master-ui");
     const isMenuVisible = masterUi && masterUi.style.display !== "none";
-    const shouldShow = window.gameState === "ROUNDTABLE_LOBBY" && !isMenuVisible && !CardSelector.isOpen;
+    const shouldShow = window.gameState === "ROUNDTABLE_LOBBY" && !isMenuVisible && !isCharacterSelectOpen;
     changeCharEl.style.display = shouldShow ? "block" : "none";
   }
 
@@ -1707,7 +1451,6 @@ window.addEventListener("cosmic-clash-map-change", (event) => {
 
 async function boot() {
   initPointerLockControls();
-  CardSelector.preload();
   window._threeScene = scene;
   window._threeCamera = camera;
   verifySceneLighting(scene);
