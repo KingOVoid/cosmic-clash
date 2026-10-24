@@ -166,17 +166,13 @@ window.hostMatch = async function (mapName) {
   if (masterUi) {
     masterUi.style.display = 'none';
   }
-  const charUi = document.getElementById('character-select-ui');
-  if (charUi) {
-    charUi.style.display = 'flex';
-  }
-  isCharacterSelectOpen = true;
 
   const mapSelectEl = document.getElementById('mapSelect');
   const selectedMap = mapSelectEl ? mapSelectEl.value : (mapName || 'PENDING');
   window.pendingMatch = { type: 'host', mapName: selectedMap };
   window.gameState = 'ROUNDTABLE_LOBBY';
-  // Pre-lobby flow: do NOT spawn player or lock pointer yet!
+
+  openCharacterSelect();
 };
 
 window.joinMatch = async function (roomCode) {
@@ -184,15 +180,11 @@ window.joinMatch = async function (roomCode) {
   if (masterUi) {
     masterUi.style.display = 'none';
   }
-  const charUi = document.getElementById('character-select-ui');
-  if (charUi) {
-    charUi.style.display = 'flex';
-  }
-  isCharacterSelectOpen = true;
 
   window.pendingMatch = { type: 'join', roomCode };
   window.gameState = 'ROUNDTABLE_LOBBY';
-  // Pre-lobby flow: do NOT spawn player or lock pointer yet!
+
+  openCharacterSelect();
 };
 
 window.mouseSensitivity = 1.0;
@@ -624,26 +616,219 @@ function lerpAngle(from, to, t) {
   return from + diff * t;
 }
 
+export class CardSelector {
+  static cardGroup = null;
+  static cards = [];
+  static isOpen = false;
+  static raycaster = new THREE.Raycaster();
+  static mouse = new THREE.Vector2(-999, -999);
+  static hoveredCard = null;
+  static isLoaded = false;
+  static cardTemplates = new Map();
+  static gltfLoader = new GLTFLoader();
+
+  static async preload() {
+    if (this.isLoaded) return;
+    const cardDefs = [
+      { classId: "rogue", name: "Card_Dagger", fallback: "5_Steal" },
+      { classId: "sorcerer", name: "Card_Fire", fallback: "1_Fireball" },
+      { classId: "druid", name: "Card_Leaf", fallback: "25_Element_Earth" },
+      { classId: "paladin", name: "Card_Shield", fallback: "29_Block" }
+    ];
+
+    for (const def of cardDefs) {
+      let sceneModel = null;
+      const urls = [
+        `./assets/environment/${def.name}.glb`,
+        `./assets/environment/${def.name}.gltf`,
+        `./assets/environment/${def.fallback}.gltf`
+      ];
+      for (const url of urls) {
+        try {
+          const gltf = await this.gltfLoader.loadAsync(url);
+          if (gltf && gltf.scene) {
+            sceneModel = gltf.scene;
+            break;
+          }
+        } catch (e) {}
+      }
+      if (sceneModel) {
+        this.cardTemplates.set(def.classId, sceneModel);
+      }
+    }
+    this.isLoaded = true;
+  }
+
+  static async open(cameraRef) {
+    if (this.isOpen) return;
+    this.isOpen = true;
+    isCharacterSelectOpen = true;
+
+    const promptEl = document.getElementById("character-select-ui");
+    if (promptEl) promptEl.style.display = "flex";
+
+    if (!this.cardGroup) {
+      this.cardGroup = new THREE.Group();
+      this.cardGroup.name = "cardUiRig";
+    }
+
+    while (this.cardGroup.children.length > 0) {
+      this.cardGroup.remove(this.cardGroup.children[0]);
+    }
+    this.cards = [];
+
+    await this.preload();
+
+    // 4 cards fanned out in front of the lens across the X-axis (z: -5, y: -1)
+    const cardConfigs = [
+      { classId: "rogue", label: "ROGUE", x: -3.0, y: -1.0, z: -5.0, rotZ: 0.12, rotY: 0.14, color: 0xf97316 },
+      { classId: "sorcerer", label: "SORCERER", x: -1.0, y: -0.9, z: -4.8, rotZ: 0.04, rotY: 0.05, color: 0xa855f7 },
+      { classId: "druid", label: "DRUID", x: 1.0, y: -0.9, z: -4.8, rotZ: -0.04, rotY: -0.05, color: 0x22c55e },
+      { classId: "paladin", label: "PALADIN", x: 3.0, y: -1.0, z: -5.0, rotZ: -0.12, rotY: -0.14, color: 0xfbbf24 }
+    ];
+
+    for (const cfg of cardConfigs) {
+      const template = this.cardTemplates.get(cfg.classId);
+      const cardObj = new THREE.Group();
+      cardObj.name = `card-3d-${cfg.classId}`;
+      cardObj.userData.classId = cfg.classId;
+      cardObj.userData.baseX = cfg.x;
+      cardObj.userData.baseY = cfg.y;
+      cardObj.userData.baseZ = cfg.z;
+      cardObj.userData.baseRotY = cfg.rotY;
+      cardObj.userData.baseRotZ = cfg.rotZ;
+      cardObj.userData.baseScale = 0.75;
+
+      cardObj.position.set(cfg.x, cfg.y, cfg.z);
+      cardObj.rotation.set(0, cfg.rotY, cfg.rotZ);
+      cardObj.scale.setScalar(0.75);
+
+      if (template) {
+        const clone = template.clone(true);
+        clone.traverse((node) => {
+          if (node.isMesh) {
+            node.castShadow = false;
+            node.receiveShadow = false;
+            node.userData.classId = cfg.classId;
+          }
+        });
+        cardObj.add(clone);
+      } else {
+        const fallbackMesh = new THREE.Mesh(
+          new THREE.BoxGeometry(2.4, 3.4, 0.1),
+          new THREE.MeshStandardMaterial({ color: cfg.color, roughness: 0.3, metalness: 0.2 })
+        );
+        fallbackMesh.userData.classId = cfg.classId;
+        cardObj.add(fallbackMesh);
+      }
+
+      // Add atmospheric glow light directly to each card
+      const glow = new THREE.PointLight(cfg.color, 1.8, 5);
+      glow.position.set(0, 0, 0.6);
+      cardObj.add(glow);
+
+      this.cardGroup.add(cardObj);
+      this.cards.push(cardObj);
+    }
+
+    // Direct lighting rig for camera-attached cards so they are radiant
+    const cardLight = new THREE.DirectionalLight(0xffffff, 1.4);
+    cardLight.position.set(0, 3, 0);
+    this.cardGroup.add(cardLight);
+
+    cameraRef.add(this.cardGroup);
+  }
+
+  static update(dt, elapsed) {
+    if (!this.isOpen || this.cards.length === 0) return;
+    for (const card of this.cards) {
+      if (card === this.hoveredCard) {
+        card.position.y = THREE.MathUtils.lerp(card.position.y, card.userData.baseY + 0.35, 0.2);
+        card.scale.lerp(new THREE.Vector3(0.88, 0.88, 0.88), 0.2);
+        card.rotation.z = THREE.MathUtils.lerp(card.rotation.z, 0, 0.2);
+      } else {
+        card.position.y = THREE.MathUtils.lerp(card.position.y, card.userData.baseY + Math.sin(elapsed * 2.5 + card.userData.baseX) * 0.06, 0.1);
+        card.scale.lerp(new THREE.Vector3(card.userData.baseScale, card.userData.baseScale, card.userData.baseScale), 0.2);
+        card.rotation.z = THREE.MathUtils.lerp(card.rotation.z, card.userData.baseRotZ, 0.1);
+      }
+    }
+  }
+
+  static close(cameraRef) {
+    this.isOpen = false;
+    isCharacterSelectOpen = false;
+    if (this.cardGroup && cameraRef) {
+      cameraRef.remove(this.cardGroup);
+      while (this.cardGroup.children.length > 0) {
+        this.cardGroup.remove(this.cardGroup.children[0]);
+      }
+    }
+    this.cards = [];
+    this.hoveredCard = null;
+    const promptEl = document.getElementById("character-select-ui");
+    if (promptEl) promptEl.style.display = "none";
+    canvas.style.cursor = "default";
+  }
+
+  static onPointerMove(event, cameraRef) {
+    if (!this.isOpen || this.cards.length === 0) return;
+    this.mouse.x = (event.clientX / window.innerWidth) * 2 - 1;
+    this.mouse.y = -(event.clientY / window.innerHeight) * 2 + 1;
+
+    this.raycaster.setFromCamera(this.mouse, cameraRef);
+    const intersects = this.raycaster.intersectObjects(this.cards, true);
+
+    if (intersects.length > 0) {
+      let root = intersects[0].object;
+      while (root.parent && root.parent !== this.cardGroup) {
+        root = root.parent;
+      }
+      this.hoveredCard = root;
+      canvas.style.cursor = "pointer";
+    } else {
+      this.hoveredCard = null;
+      canvas.style.cursor = "default";
+    }
+  }
+
+  static onClick(event, cameraRef) {
+    if (!this.isOpen || this.cards.length === 0) return false;
+    this.mouse.x = (event.clientX / window.innerWidth) * 2 - 1;
+    this.mouse.y = -(event.clientY / window.innerHeight) * 2 + 1;
+
+    this.raycaster.setFromCamera(this.mouse, cameraRef);
+    const intersects = this.raycaster.intersectObjects(this.cards, true);
+
+    if (intersects.length > 0) {
+      let root = intersects[0].object;
+      while (root.parent && root.parent !== this.cardGroup) {
+        root = root.parent;
+      }
+      const classId = root.userData.classId;
+      if (classId) {
+        selectCharacterClass(classId);
+        return true;
+      }
+    }
+    return false;
+  }
+}
+
 export let isCharacterSelectOpen = false;
 
 export function openCharacterSelect() {
-  const modal = document.getElementById("character-select-ui");
-  if (!modal) return;
   isCharacterSelectOpen = true;
-  modal.style.display = "flex";
   if (document.exitPointerLock) {
     try {
       document.exitPointerLock();
     } catch (e) {}
   }
+  CardSelector.open(camera);
 }
 window.openCharacterSelect = openCharacterSelect;
 
 export function closeCharacterSelect() {
-  const modal = document.getElementById("character-select-ui");
-  if (modal) {
-    modal.style.display = "none";
-  }
+  CardSelector.close(camera);
   isCharacterSelectOpen = false;
   if (!window.hasPlayerSpawned) {
     const masterUi = document.getElementById("master-ui");
@@ -663,7 +848,8 @@ export function closeCharacterSelect() {
 window.closeCharacterSelect = closeCharacterSelect;
 
 export async function selectCharacterClass(classId) {
-  // 1. Hide #character-select-ui
+  // 1. Hide 3D cards and #character-select-ui
+  CardSelector.close(camera);
   const modal = document.getElementById("character-select-ui");
   if (modal) {
     modal.style.display = "none";
@@ -1386,9 +1572,20 @@ function initPointerLockControls() {
     }
     if (document.pointerLockElement) {
       const sensitivity = 0.0022 * (window.mouseSensitivity || 1.0);
-      targetYaw -= event.movementX * sensitivity;
-      targetPitch -= event.movementY * sensitivity;
-      targetPitch = Math.max(-0.1, Math.min(0.8, targetPitch));
+      targetYaw += event.movementX * sensitivity;
+      targetPitch += event.movementY * sensitivity;
+      targetPitch = Math.max(-0.6, Math.min(0.8, targetPitch));
+    }
+  });
+
+  // 3D Card Raycaster Interactivity
+  window.addEventListener("pointermove", (e) => {
+    CardSelector.onPointerMove(e, camera);
+  });
+
+  window.addEventListener("pointerdown", (e) => {
+    if (CardSelector.isOpen && e.button === 0) {
+      CardSelector.onClick(e, camera);
     }
   });
 
@@ -1462,6 +1659,8 @@ function frame(now) {
   const dt = Math.min(0.05, (now - lastFrameTime) / 1000);
   lastFrameTime = now;
 
+  CardSelector.update(dt, now / 1000);
+
   if (currentMapData && currentMapData.update) {
     currentMapData.update(dt, now / 1000);
   }
@@ -1479,6 +1678,18 @@ function frame(now) {
   const localPlayer = getLocalPlayer() || (window.Playroom && typeof window.Playroom.myPlayer === "function" && window.Playroom.myPlayer()) || { id: "local-hero" };
   const localAvatar = avatars.get(localPlayer.id);
   const localPlayerMesh = localAvatar && localAvatar.mesh ? localAvatar.mesh : null;
+
+  // Anti-Spazzing (Upright Lock): absolutely lock the player mesh's X and Z rotation to zero
+  if (localPlayerMesh) {
+    localPlayerMesh.rotation.x = 0;
+    localPlayerMesh.rotation.z = 0;
+  }
+  avatars.forEach((av) => {
+    if (av.mesh) {
+      av.mesh.rotation.x = 0;
+      av.mesh.rotation.z = 0;
+    }
+  });
 
   // Null Safety in Game Loop: wait for player to click a UI button and spawn before doing any movement math
   if (gameState === 'ROUNDTABLE_LOBBY' && !localPlayerMesh) {

@@ -85,114 +85,21 @@
     </div>
   </div>
 
-  <!-- Hidden Character Selection Modal (CSS-Driven 3D Cards) -->
-  <div id="character-select-ui" class="fixed inset-0 z-50 flex flex-col items-center justify-center bg-black/85 backdrop-blur-[10px] pointer-events-auto p-4 sm:p-6" style="display: none;">
-    <button type="button" id="close-character-select-btn" class="absolute top-6 right-8 text-stone-400 hover:text-amber-300 text-3xl font-serif font-bold leading-none cursor-pointer transition-colors pointer-events-auto" onclick="window.closeCharacterSelect()" title="Close">&times;</button>
-
-    <header class="text-center mb-6 pointer-events-auto">
+  <!-- 3D Quaternius Card Selection HUD Prompt -->
+  <div id="character-select-ui" class="fixed inset-0 z-50 flex flex-col justify-between items-center pointer-events-none p-6 sm:p-8" style="display: none;">
+    <!-- Top Header -->
+    <header class="text-center pointer-events-auto mt-4 bg-stone-950/70 border border-amber-600/40 backdrop-blur-md px-8 py-4 rounded-2xl shadow-[0_8px_30px_rgba(0,0,0,0.8)]">
       <p class="text-amber-400 font-serif text-xs md:text-sm tracking-[0.35em] uppercase mb-1 drop-shadow">Roundtable Hold Summoning</p>
-      <h2 class="text-3xl md:text-4xl font-bold font-serif text-amber-100 tracking-wider drop-shadow-[0_2px_15px_rgba(245,158,11,0.4)]">Choose Your Champion</h2>
+      <h2 class="text-2xl sm:text-3xl md:text-4xl font-bold font-serif text-amber-100 tracking-wider drop-shadow-[0_2px_15px_rgba(245,158,11,0.5)]">Choose Your Champion</h2>
       <div class="w-36 h-0.5 mx-auto mt-2 bg-gradient-to-r from-transparent via-amber-400/80 to-transparent"></div>
     </header>
 
-    <div class="character-card-container flex flex-wrap items-center justify-center gap-6 max-w-6xl w-full pointer-events-auto">
-      
-      <!-- Rogue Card -->
-      <div id="card-rogue" class="char-card char-card-rogue pointer-events-auto" onclick="window.selectCharacterClass('rogue')">
-        <div class="card-inner">
-          <div class="card-header">
-            <span class="card-badge bg-orange-950/80 text-orange-400 border border-orange-500/40">Agility</span>
-            <div class="card-icon text-orange-400">🗡️</div>
-          </div>
-          <div class="card-body">
-            <h3 class="card-title text-orange-300">Rogue</h3>
-            <p class="card-subtitle text-orange-200/70">Shadowstalker</p>
-            <p class="card-desc">Master of lethal stealth, twin daggers, and evasive teleportation.</p>
-            <div class="card-stats">
-              <div class="stat-bar"><span class="stat-label">SPD</span><div class="stat-fill" style="width: 95%; background-color: #f97316;"></div></div>
-              <div class="stat-bar"><span class="stat-label">DMG</span><div class="stat-fill" style="width: 85%; background-color: #f97316;"></div></div>
-              <div class="stat-bar"><span class="stat-label">DEF</span><div class="stat-fill" style="width: 45%; background-color: #f97316;"></div></div>
-            </div>
-          </div>
-          <div class="card-footer">
-            <span class="card-btn-label text-orange-300 border-orange-500/50">Select Rogue</span>
-          </div>
-        </div>
-      </div>
+    <!-- Close button for live switching via [C] -->
+    <button type="button" id="close-character-select-btn" class="absolute top-6 right-8 text-stone-400 hover:text-amber-300 text-3xl font-serif font-bold leading-none cursor-pointer transition-colors pointer-events-auto bg-stone-900/80 hover:bg-stone-800 p-2 rounded-xl border border-amber-600/40" onclick="window.closeCharacterSelect()" title="Close">&times;</button>
 
-      <!-- Sorcerer Card -->
-      <div id="card-sorcerer" class="char-card char-card-sorcerer pointer-events-auto" onclick="window.selectCharacterClass('sorcerer')">
-        <div class="card-inner">
-          <div class="card-header">
-            <span class="card-badge bg-purple-950/80 text-purple-300 border border-purple-500/40">Arcana</span>
-            <div class="card-icon text-purple-400">🔮</div>
-          </div>
-          <div class="card-body">
-            <h3 class="card-title text-purple-300">Sorcerer</h3>
-            <p class="card-subtitle text-purple-200/70">Spellweaver</p>
-            <p class="card-desc">Harnesses cosmic firestorms, arcane rifts, and burst sorceries.</p>
-            <div class="card-stats">
-              <div class="stat-bar"><span class="stat-label">ARC</span><div class="stat-fill" style="width: 100%; background-color: #a855f7;"></div></div>
-              <div class="stat-bar"><span class="stat-label">RNG</span><div class="stat-fill" style="width: 90%; background-color: #a855f7;"></div></div>
-              <div class="stat-bar"><span class="stat-label">DEF</span><div class="stat-fill" style="width: 40%; background-color: #a855f7;"></div></div>
-            </div>
-          </div>
-          <div class="card-footer">
-            <span class="card-btn-label text-purple-300 border-purple-500/50">Select Sorcerer</span>
-          </div>
-        </div>
-      </div>
-
-      <!-- Druid Card -->
-      <div id="card-druid" class="char-card char-card-druid pointer-events-auto" onclick="window.selectCharacterClass('druid')">
-        <div class="card-inner">
-          <div class="card-header">
-            <span class="card-badge bg-emerald-950/80 text-emerald-300 border border-emerald-500/40">Nature</span>
-            <div class="card-icon text-emerald-400">🌿</div>
-          </div>
-          <div class="card-body">
-            <h3 class="card-title text-emerald-300">Druid</h3>
-            <p class="card-subtitle text-emerald-200/70">Wildshaper</p>
-            <p class="card-desc">Commands root entanglements, healing surges, and ferocious beast forms.</p>
-            <div class="card-stats">
-              <div class="stat-bar"><span class="stat-label">VIT</span><div class="stat-fill" style="width: 85%; background-color: #22c55e;"></div></div>
-              <div class="stat-bar"><span class="stat-label">CC</span><div class="stat-fill" style="width: 80%; background-color: #22c55e;"></div></div>
-              <div class="stat-bar"><span class="stat-label">DEF</span><div class="stat-fill" style="width: 75%; background-color: #22c55e;"></div></div>
-            </div>
-          </div>
-          <div class="card-footer">
-            <span class="card-btn-label text-emerald-300 border-emerald-500/50">Select Druid</span>
-          </div>
-        </div>
-      </div>
-
-      <!-- Paladin Card -->
-      <div id="card-paladin" class="char-card char-card-paladin pointer-events-auto" onclick="window.selectCharacterClass('paladin')">
-        <div class="card-inner">
-          <div class="card-header">
-            <span class="card-badge bg-amber-950/80 text-amber-300 border border-amber-500/40">Radiance</span>
-            <div class="card-icon text-amber-400">🛡️</div>
-          </div>
-          <div class="card-body">
-            <h3 class="card-title text-amber-300">Paladin</h3>
-            <p class="card-subtitle text-amber-200/70">Vanguard</p>
-            <p class="card-desc">Unstoppable shield charges, holy hammer smites, and divine sanctuary.</p>
-            <div class="card-stats">
-              <div class="stat-bar"><span class="stat-label">DEF</span><div class="stat-fill" style="width: 95%; background-color: #fbbf24;"></div></div>
-              <div class="stat-bar"><span class="stat-label">PWR</span><div class="stat-fill" style="width: 80%; background-color: #fbbf24;"></div></div>
-              <div class="stat-bar"><span class="stat-label">UTL</span><div class="stat-fill" style="width: 70%; background-color: #fbbf24;"></div></div>
-            </div>
-          </div>
-          <div class="card-footer">
-            <span class="card-btn-label text-amber-300 border-amber-500/50">Select Paladin</span>
-          </div>
-        </div>
-      </div>
-
-    </div>
-
-    <footer class="mt-8 text-center text-xs font-serif text-stone-400 pointer-events-auto">
-      <span>Press <kbd class="px-2 py-0.5 bg-stone-800 rounded border border-stone-600 text-amber-300 font-mono">[Alt]</kbd> to unlock mouse cursor · <kbd class="px-2 py-0.5 bg-stone-800 rounded border border-stone-600 text-amber-300 font-mono">[C]</kbd> to switch champion</span>
+    <!-- Bottom Footer Hint -->
+    <footer class="mb-4 text-center pointer-events-auto bg-stone-950/70 border border-amber-600/30 backdrop-blur-md px-6 py-2.5 rounded-xl text-xs font-serif text-stone-300 shadow-xl">
+      <span>Click any <strong class="text-amber-300">3D Card</strong> to summon champion · Press <kbd class="px-2 py-0.5 bg-stone-800 rounded border border-stone-600 text-amber-300 font-mono">[Alt]</kbd> to unlock cursor · <kbd class="px-2 py-0.5 bg-stone-800 rounded border border-stone-600 text-amber-300 font-mono">[C]</kbd> to switch</span>
     </footer>
   </div>
 

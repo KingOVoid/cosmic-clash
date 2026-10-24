@@ -89,7 +89,7 @@ html, body {
 @media (max-width: 700px) { .cosmic-title-wrap { top: 28px; } .class-wheel { left: 8px; bottom: 20px; transform: scale(.78); transform-origin: bottom left; } .start-button { right: 11%; top: 45%; width: 126px; height: 126px; } .start-button__label { font-size: 23px; } .parchment-scroll { padding-inline: 34px; } }
 
 /* ==========================================
-   CSS-Driven 3D Character Selection Cards
+   3D Character Selection HUD Overlay
    ========================================== */
 #character-select-ui {
   position: fixed;
@@ -98,10 +98,16 @@ html, body {
   display: flex;
   flex-direction: column;
   align-items: center;
-  justify-content: center;
-  background: rgba(6, 8, 14, 0.85);
-  backdrop-filter: blur(10px);
-  -webkit-backdrop-filter: blur(10px);
+  justify-content: space-between;
+  background: transparent !important;
+  background-color: transparent !important;
+  pointer-events: none !important;
+}
+
+#character-select-ui header,
+#character-select-ui footer,
+#character-select-ui button {
+  pointer-events: auto !important;
 }
 
 .char-card {
