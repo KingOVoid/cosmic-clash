@@ -4,11 +4,12 @@ import { useFrame } from '@react-three/fiber';
 import { useKeyboardControls } from '@react-three/drei';
 import { RigidBody, CapsuleCollider } from '@react-three/rapier';
 
-export default function PlayerController({ speed = 8, position = [0, 2, 0] }) {
+export default function PlayerController({ speed = 8, position = [0, 3, 10] }) {
   const bodyRef = useRef(null);
+  const meshRef = useRef(null);
   const [, getKeys] = useKeyboardControls();
 
-  useFrame((state) => {
+  useFrame((state, delta) => {
     if (!bodyRef.current) return;
 
     // 1. Grab active keys
@@ -38,6 +39,14 @@ export default function PlayerController({ speed = 8, position = [0, 2, 0] }) {
     // 3. Apply physics: inject X and Z velocity while preserving Y (gravity)
     const linvel = bodyRef.current.linvel();
     bodyRef.current.setLinvel({ x: movement.x, y: linvel.y, z: movement.z }, true);
+
+    // 4. Mesh Rotation Sync: Extract camera Y-axis rotation (Yaw) and smoothly slerp
+    const cameraEuler = new THREE.Euler().setFromQuaternion(state.camera.quaternion, 'YXZ');
+    const targetQuat = new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0, 1, 0), cameraEuler.y);
+    if (meshRef.current) {
+      const slerpFactor = Math.min(1, delta * 15);
+      meshRef.current.quaternion.slerp(targetQuat, slerpFactor);
+    }
   });
 
   return (
@@ -50,8 +59,9 @@ export default function PlayerController({ speed = 8, position = [0, 2, 0] }) {
       restitution={0}
     >
       <CapsuleCollider args={[0.6, 0.4]} position={[0, 1, 0]} />
-      {/* Player Visual Avatar */}
-      <group position={[0, 1, 0]}>
+
+      {/* Synchronized Player Mesh Group */}
+      <group ref={meshRef} position={[0, 1, 0]}>
         <mesh castShadow receiveShadow>
           <capsuleGeometry args={[0.4, 1.2, 8, 16]} />
           <meshStandardMaterial
@@ -60,14 +70,14 @@ export default function PlayerController({ speed = 8, position = [0, 2, 0] }) {
             metalness={0.7}
           />
         </mesh>
-        {/* Directional visor */}
-        <mesh position={[0, 0.4, 0.35]} castShadow>
+        {/* Visor facing forward (-Z) */}
+        <mesh position={[0, 0.4, -0.35]} castShadow>
           <boxGeometry args={[0.4, 0.15, 0.2]} />
           <meshStandardMaterial
             color="#f59e0b"
             roughness={0.2}
             emissive="#f59e0b"
-            emissiveIntensity={0.6}
+            emissiveIntensity={0.8}
           />
         </mesh>
       </group>

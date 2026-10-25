@@ -3,6 +3,7 @@ import { Canvas } from '@react-three/fiber';
 import { Environment, OrbitControls, KeyboardControls } from '@react-three/drei';
 import { Physics, RigidBody } from '@react-three/rapier';
 import PlayerController from './PlayerController.jsx';
+import RoundtableLobby from './RoundtableLobby.jsx';
 
 const keyboardMap = [
   { name: 'forward', keys: ['KeyW', 'ArrowUp'] },
@@ -18,14 +19,14 @@ export default function App() {
         {/* 2D Overlay Header */}
         <div className="absolute top-6 left-1/2 -translate-x-1/2 z-10 pointer-events-none text-center">
           <p className="text-amber-400 font-serif text-xs tracking-[0.35em] uppercase drop-shadow">
-            Cosmic Clash Engine
+            Roundtable Hold
           </p>
           <h1 className="text-2xl sm:text-3xl font-bold font-serif text-amber-100 tracking-wider drop-shadow-[0_2px_15px_rgba(245,158,11,0.5)]">
-            Player Movement & Rapier Physics
+            Cosmic Clash Lobby
           </h1>
           <div className="w-32 h-0.5 mx-auto mt-2 bg-gradient-to-r from-transparent via-amber-400/80 to-transparent"></div>
           <p className="text-stone-400 font-serif text-xs mt-2 drop-shadow">
-            Use <span className="text-amber-300 font-bold">W A S D</span> or <span className="text-amber-300 font-bold">Arrows</span> to move · Left click + drag to orbit camera
+            <span className="text-amber-300 font-bold">WASD / Arrows</span> to Move · Player automatically aims with Camera · Orbit mouse to look
           </p>
         </div>
 
@@ -33,10 +34,10 @@ export default function App() {
         <Canvas
           shadows
           dpr={[1, 2]}
-          camera={{ position: [0, 8, 16], fov: 50 }}
+          camera={{ position: [0, 8, 20], fov: 50 }}
           className="w-full h-full"
         >
-          <color attach="background" args={['#0c0a09']} />
+          <color attach="background" args={['#0a0c10']} />
 
           {/* Global HDRI Environment */}
           <Suspense fallback={null}>
@@ -44,41 +45,32 @@ export default function App() {
           </Suspense>
 
           {/* Cinematic Directional Light with Shadow Mapping */}
-          <ambientLight intensity={0.25} />
+          <ambientLight intensity={0.4} />
           <directionalLight
             castShadow
-            position={[10, 20, 10]}
-            intensity={1.5}
+            position={[15, 25, 15]}
+            intensity={1.8}
             shadow-mapSize={[2048, 2048]}
             shadow-camera-near={0.5}
-            shadow-camera-far={50}
-            shadow-camera-left={-25}
-            shadow-camera-right={25}
-            shadow-camera-top={25}
-            shadow-camera-bottom={-25}
+            shadow-camera-far={70}
+            shadow-camera-left={-35}
+            shadow-camera-right={35}
+            shadow-camera-top={35}
+            shadow-camera-bottom={-35}
             shadow-bias={-0.0001}
           />
 
           {/* Rapier Physics System */}
           <Suspense fallback={null}>
             <Physics gravity={[0, -9.81, 0]}>
-              {/* Player Controller */}
-              <PlayerController speed={8} position={[0, 2, 0]} />
+              {/* Active Player Character Controller */}
+              <PlayerController speed={8} position={[0, 3, 10]} />
 
-              {/* Fixed Ground Plane */}
-              <RigidBody type="fixed" colliders="cuboid">
-                <mesh receiveShadow position={[0, -0.5, 0]}>
-                  <boxGeometry args={[40, 1, 40]} />
-                  <meshStandardMaterial
-                    color="#292524"
-                    roughness={0.7}
-                    metalness={0.2}
-                  />
-                </mesh>
-              </RigidBody>
+              {/* Unified Roundtable Lobby Environment with Trimesh Collider */}
+              <RoundtableLobby />
 
-              {/* Dynamic Prop Block */}
-              <RigidBody position={[4, 5, -2]} colliders="cuboid">
+              {/* Dynamic Interactive Prop */}
+              <RigidBody position={[4, 5, 6]} colliders="cuboid">
                 <mesh castShadow receiveShadow>
                   <boxGeometry args={[1.5, 1.5, 1.5]} />
                   <meshStandardMaterial
@@ -92,7 +84,12 @@ export default function App() {
           </Suspense>
 
           {/* Interactive Camera Orbit Controls */}
-          <OrbitControls makeDefault minDistance={3} maxDistance={40} maxPolarAngle={Math.PI / 2 - 0.05} />
+          <OrbitControls
+            makeDefault
+            minDistance={4}
+            maxDistance={50}
+            maxPolarAngle={Math.PI / 2 - 0.05}
+          />
         </Canvas>
       </div>
     </KeyboardControls>
